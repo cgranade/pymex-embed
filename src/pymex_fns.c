@@ -40,6 +40,7 @@ typedef enum {
 
 bool has_initialized = false;
 PyObject* __main__ = NULL;
+PyObject* MatlabError = NULL;
 
 // PROTOTYPES //////////////////////////////////////////////////////////////////
 
@@ -52,6 +53,44 @@ void eval(int, mxArray**, int, const mxArray**);
 void decref(int, mxArray**, int, const mxArray**);
 void str(int, mxArray**, int, const mxArray**);
 void put(int, mxArray**, int, const mxArray**);
+
+// PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
+// These functions are exposed to the embedded Python runtime via the
+// Py_InitModule function called inside mexFunction(), below.
+
+static PyObject* pymex_mateval(PyObject* self, PyObject* str) {
+    // Because METH_0 is defined for this method, we need not parse the
+    // args tuple; the single argument str is unpacked from it for us.
+    mxArray* result = mexEvalStringWithTrap(PyString_AS_STRING(str));
+    
+    if (result == NULL) {
+        Py_INCREF(Py_None);
+        return Py_None;
+    } else {
+        mxArray* m_err_msg = mxGetProperty(result, 0, "message");
+        if (m_err_msg != NULL) {
+            char* c_err_msg;
+            get_matlab_str(m_err_msg, &c_err_msg);
+            PyErr_SetString(MatlabError, c_err_msg);
+        } else {
+            PyErr_SetString(MatlabError, "Unknown MATLAB error occured.");
+        }
+        
+        // A NULL must make its way all the way back to the Python
+        // interpreter for the PyErr_SetString call to raise an exception.
+        return NULL;
+    }
+    
+}
+
+static PyMethodDef PymexMethods[] = {
+    {"mateval", pymex_mateval, METH_O,
+        "Evaluates MATLAB code inside the PyMEX host."},
+        
+    // Terminate the array with a NULL method.
+    {NULL, NULL, 0, NULL}
+};
+
 
 // MEX ENTRY POINTS ////////////////////////////////////////////////////////////
 
@@ -69,6 +108,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         Py_Initialize();
         __main__ = PyImport_AddModule("__main__");
         mexAtExit(cleanup);
+        
+        // Load embedded methods into the Python runtime environment.
+        PyObject* pymex_module = Py_InitModule("pymex", PymexMethods);
+        
+        // Make a new MatlabException to handle traps.
+        PyObject* dict = PyModule_GetDict(pymex_module);
+        MatlabError = PyErr_NewException("pymex.MatlabError",
+            PyExc_StandardError, NULL);
+        PyDict_SetItemString(dict, "MatlabError", MatlabError);
+        
     }
     
     // Assume that nrhs >= 1, and that prhs[0] is of type int8 (classID == 8).
