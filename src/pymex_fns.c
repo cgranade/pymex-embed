@@ -90,14 +90,16 @@ static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
     
     static char *kwlist[] = {"name", "workspace", NULL};
     
+    mxArray* mat_var;
+    PyObject* py_var;
+    
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &name, &workspace)) {
     //if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kwlist, &name, &workspace)) {
         mexWarnMsgTxt("PyArg_ParseTupleAndKeywords failed.");
         return NULL;
     }
     
-    mxArray* mat_var = mexGetVariable(workspace, name);
-    PyObject* py_var;
+    mat_var = mexGetVariable(workspace, name);
     
     if (mat_var != NULL) {    
         py_var = py_obj_from_mat_value(mat_var);
@@ -138,6 +140,8 @@ void cleanup() {
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
+    PyObject *pymex_module, *dict;
+    
     // Create the various variables we'll need in the switch below.
     function_t function = *(int*)(mxGetData(prhs[0]));
 
@@ -148,10 +152,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         mexAtExit(cleanup);
         
         // Load embedded methods into the Python runtime environment.
-        PyObject* pymex_module = Py_InitModule("pymex", PymexMethods);
+        pymex_module = Py_InitModule("pymex", PymexMethods);
         
         // Make a new MatlabException to handle traps.
-        PyObject* dict = PyModule_GetDict(pymex_module);
+        dict = PyModule_GetDict(pymex_module);
         MatlabError = PyErr_NewException("pymex.MatlabError",
             PyExc_StandardError, NULL);
         PyDict_SetItemString(dict, "MatlabError", MatlabError);
@@ -185,12 +189,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 // UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
 
 void get_matlab_str(const mxArray* m_str, char** c_str) {
+    int status;
+    
     // Make a buffer using mxCalloc, leaving room for the \0.
     int buf_size = (mxGetM(m_str) * mxGetN(m_str)) + 1;
     *c_str = mxCalloc(buf_size, sizeof(char));
     
     // Attempt to convert the MATLAB string into a C string.
-    int status = mxGetString(m_str, *c_str, buf_size);
+    status = mxGetString(m_str, *c_str, buf_size);
     if (status != 0) {
         mexWarnMsgTxt("Not enough space. String is truncated.");
     }
@@ -211,6 +217,9 @@ PyObject* py_list_from_cell_array(
     mwIndex* dims
 ) {
     
+    PyObject *py_list, *new_el;
+    int idx_el = 0;
+    
     if (subs == NULL) {
         subs = mxCalloc(nsubs, sizeof(mwIndex));
     }
@@ -219,9 +228,7 @@ PyObject* py_list_from_cell_array(
         dims = mxGetDimensions(cell_array);
     }
     
-    PyObject* py_list = PyList_New(dims[idx_dim]);
-    PyObject* new_el;
-    int idx_el = 0;
+    py_list = PyList_New(dims[idx_dim]);
     for (idx_el = 0; idx_el < dims[idx_dim]; idx_el++) {
         subs[idx_dim] = idx_el;
         if (idx_dim != nsubs - 1) {
@@ -290,6 +297,10 @@ PyObject* py_obj_from_mat_value(const mxArray* m_value) {
 // MEX FUNCTIONS ///////////////////////////////////////////////////////////////
 
 void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+    
+    char* name_buf;
+    PyObject *py_name, *py_module;
+    
     // We expect there to be a single argument, containing the name
     // of the module to import.
     if (nrhs < 1) {
@@ -297,11 +308,10 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         return;
     }
     
-    char* name_buf;
     get_matlab_str(prhs[0], &name_buf);
     
-    PyObject *py_name = PyString_FromString(name_buf);
-    PyObject *py_module = PyImport_Import(py_name);
+    py_name = PyString_FromString(name_buf);
+    py_module = PyImport_Import(py_name);
     Py_DECREF(py_name);
     
     if (py_module == NULL) {
@@ -321,6 +331,9 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 }
 
 void eval(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+    
+    char* arg_buf;
+    
     // We expect there to be a single argument for now,
     // consisting of a string to be run.
     if (nrhs < 1) {
@@ -328,7 +341,6 @@ void eval(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         return;
     }
     
-    char* arg_buf;
     get_matlab_str(prhs[0], &arg_buf);
     
     // Now evaluate the string as a Python line.
@@ -353,6 +365,8 @@ void decref(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
 void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
+    PyObject *py_obj, *py_str;
+    
     if (nrhs != 1) {
         mexErrMsgTxt("Expected exactly one argument.");
         return;
@@ -368,8 +382,8 @@ void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         return;
     }
     
-    PyObject *py_obj = py_obj_from_mat_scalar(prhs[0]);
-    PyObject *py_str = PyObject_Str(py_obj);
+    py_obj = py_obj_from_mat_scalar(prhs[0]);
+    py_str = PyObject_Str(py_obj);
     
     if (py_str == NULL) {
         if (PyErr_Occurred() != NULL) {
@@ -384,22 +398,25 @@ void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 }
 
 void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+    
+    PyObject *new_obj = NULL, *dict;
+    char* val_name;
+    mxArray const *m_val;
+    
     if (nrhs != 2) {
         mexErrMsgTxt("Expected exactly two argument.");
         return;
     }
     
-    PyObject *new_obj = NULL;
-    char* val_name;
     get_matlab_str(prhs[0], &val_name);
     
     // FIXME: currently assuming n = m = 1 (scalar case).
     
-    mxArray const *m_val = prhs[1];
+    m_val = prhs[1];
     new_obj = py_obj_from_mat_value(m_val);
     
     if (new_obj != NULL) {
-        PyObject* dict = PyModule_GetDict(__main__);
+        dict = PyModule_GetDict(__main__);
         if (dict == NULL) {
             mexErrMsgTxt("Could not get dict(__main__).");
             return;
