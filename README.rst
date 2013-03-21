@@ -30,6 +30,32 @@ Linux/Unix
 Windows
 ~~~~~~~
 
-In theory, Windows should work as a build target, but ``rebuild_pymex.m`` does not yet automate the
-process.
+1) Make sure you have Python 2.7 (64-bit) installed. `Enthought Python
+   Distribution 7.3`_ has been tested, but other distributions may also
+   work.
+2) Install `Windows SDK 7.1`_ or any other compiler supported by MEX.
+   You can check that you have setup MEX correctly by running::
 
+    >> mex -setup
+
+3) Run rebuild_pymex.m in MATLAB.
+
+    >> rebuild_pymex
+
+Known Issues
+------------
+
+All Platforms
+~~~~~~~~~~~~~
+
+* After calling ``str`` (see ``test_case.m``), running ``clear all``
+  hard crashes MATLAB.
+
+Windows
+~~~~~~~
+
+* Output sent to Python ``sys.stdout`` is not visible from within the
+  MATLAB Desktop.
+
+.. _Enthought Python Distribution 7.3: https://www.enthought.com/
+.. _Windows SDK 7.1: http://www.microsoft.com/en-us/download/details.aspx?id=8279
