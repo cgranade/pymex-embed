@@ -1,6 +1,10 @@
 ## MEX build files ##
 *.mexa64
+*.mexw64*
 # TODO: add other MEX extensions here.
+
+## MATLAB junk ##
+*.asv
 
 ## Dropbox crap ##
 .dropbox
