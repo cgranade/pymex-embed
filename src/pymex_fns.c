@@ -83,11 +83,49 @@ static PyObject* pymex_mateval(PyObject* self, PyObject* str) {
     
 }
 
+static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
+    
+    char *name;
+    char *workspace = "base";
+    
+    static char *kwlist[] = {"name", "workspace", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &name, &workspace)) {
+    //if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kwlist, &name, &workspace)) {
+        mexWarnMsgTxt("PyArg_ParseTupleAndKeywords failed.");
+        return NULL;
+    }
+    
+    mxArray* mat_var = mexGetVariable(workspace, name);
+    PyObject* py_var;
+    
+    if (mat_var != NULL) {    
+        py_var = py_obj_from_mat_value(mat_var);
+        mxDestroyArray(mat_var);
+    } else {
+        PyErr_SetString(PyExc_NameError,
+            "No such MATLAB variable.");
+        return NULL;
+    }
+    
+    if (py_var != NULL) {
+        Py_INCREF(py_var);
+        return py_var;
+    } else {
+        PyErr_SetString(PyExc_NotImplementedError,
+            "MATLAB value class not yet supported.");
+        return NULL;
+    }
+    
+}
+
 static PyMethodDef PymexMethods[] = {
     {"mateval", pymex_mateval, METH_O,
         "Evaluates MATLAB code inside the PyMEX host."},
+    {"get", (PyCFunction)pymex_get, METH_VARARGS | METH_KEYWORDS,
+        "Returns the value of a MATLAB variable."},
         
-    // Terminate the array with a NULL method.
+    // Terminate the array with a NULL method entry.
     {NULL, NULL, 0, NULL}
 };
 
@@ -238,7 +276,7 @@ PyObject* py_obj_from_mat_value(const mxArray* m_value) {
             return new_obj;
             
         case mxFUNCTION_CLASS:
-            mexErrMsgTxt("Calling MATLAB functions from within Python is not supported.");
+            mexErrMsgTxt("Calling MATLAB functions from within Python is not yet supported.");
             return NULL;
             
             
