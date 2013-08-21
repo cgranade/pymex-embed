@@ -39,6 +39,12 @@ classdef PyObject < handle
             s = pymex_fns(int8(3), self.py_pointer);
         end
         
+        function obj = getattr(self, name)
+            % TODO: move call to PyObject constructor into pymex_fns.c, as
+            %       we will need to add special cases.
+            obj = PyObject(pymex_fns(int8(6), self.py_pointer, name));
+        end
+        
         % Hooboy, this will be a pain.
         %function b = subsref(self, subs)
         %    disp(subs.type)

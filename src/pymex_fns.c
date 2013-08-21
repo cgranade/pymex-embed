@@ -34,6 +34,8 @@ typedef enum {
     DECREF = 2,
     STR = 3,
     PUT = 4,
+    GET = 5,
+    GETATTR = 6,
 } function_t;
 
 // GLOBALS /////////////////////////////////////////////////////////////////////
@@ -53,6 +55,8 @@ void eval(int, mxArray**, int, const mxArray**);
 void decref(int, mxArray**, int, const mxArray**);
 void str(int, mxArray**, int, const mxArray**);
 void put(int, mxArray**, int, const mxArray**);
+void get(int, mxArray**, int, const mxArray**);
+void getattr(int, mxArray**, int, const mxArray**);
 
 // PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
 // These functions are exposed to the embedded Python runtime via the
@@ -183,11 +187,26 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         case PUT:
             put(nlhs, plhs, nrhs - 1, prhs + 1);
             break;
+            
+        case GET:
+            get(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case GETATTR:
+            getattr(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
     }
 }
 
 // UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
 
+/**
+ * Gets the contents of a MATLAB string as a C string (zero-terminated char*).
+ *
+ * @param m_str: Pointer to a MATLAB array containing a string to be extracted.
+ * @param c_str: Pointer that will be assigned to the new C string containing
+ *     the contents of `m_str`.
+ */
 void get_matlab_str(const mxArray* m_str, char** c_str) {
     int status;
     
@@ -203,10 +222,21 @@ void get_matlab_str(const mxArray* m_str, char** c_str) {
 }
 
 /**
- * Converts a MATLAB scalar containing a pointer into a a PyObject*.
+ * Converts a MATLAB scalar containing a pointer into a PyObject*.
  */
 PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar) {
     return *(PyObject**)mxGetData(m_scalar);
+}
+
+/**
+ * Boxes a PyObject* into a MATLAB scalar (1x1 array of type long long int).
+ * Used to expose pointers to the PyObject MATLAB class.
+ */
+mxArray* mat_scalar_from_py_obj(const PyObject* py_obj) {
+    mxArray *m_scalar;
+    m_scalar = mxCreateNumericMatrix(1, 1, mxINT64_CLASS, mxREAL);
+    ((long long int*)mxGetData(m_scalar))[0] = (long long int) py_obj;
+    return m_scalar;
 }
 
 /**
@@ -311,7 +341,7 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     get_matlab_str(prhs[0], &name_buf);
     
     py_name = PyString_FromString(name_buf);
-    py_module = PyImport_Import(py_name);
+    py_module = PyImport_Import(py_name); // New reference, so now incref needed.
     Py_DECREF(py_name);
     
     if (py_module == NULL) {
@@ -325,8 +355,9 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // FIXME: Find a way to DECREF this later!
         // Py_DECREF(py_module);
     } else {
-        plhs[0] = mxCreateNumericMatrix(1, 1, mxINT64_CLASS, mxREAL);
-        ((long long int*)mxGetData(plhs[0]))[0] = (long long int) py_module;
+        plhs[0] = mat_scalar_from_py_obj(py_module);
+        // plhs[0] = mxCreateNumericMatrix(1, 1, mxINT64_CLASS, mxREAL);
+        // ((long long int*)mxGetData(plhs[0]))[0] = (long long int) py_module;
     }
 }
 
@@ -428,5 +459,96 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // FIXME: decref if there's an exception, otherwise don't?
         //Py_DECREF(__main__);
     }
+    
+}
+
+/**
+ * MATLAB signature: obj = py_get(name)
+ * 
+ * Returns the contents of a Python variable as a MATLAB array.
+ */
+void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+    // TODO: special case away the various Python types that have 1:1
+    //       representations in MATLAB, including ints, floats and NumPy
+    //       arrays of the appropriate dtypes.
+    
+    PyObject *new_obj = NULL, *dict;
+    char* val_name;
+    PyObject* py_val_name;
+    
+    if (nrhs != 1) {
+        mexErrMsgTxt("Expected exactly one argument.");
+    }
+    
+    // Fetch the name of the value we are supposed to pull from Python's
+    // __main__.
+    get_matlab_str(prhs[0], &val_name);
+    // Convert the value name to a Python str.
+    py_val_name = PyString_FromString(val_name);
+    
+    // Find __main__'s dict.
+    dict = PyModule_GetDict(__main__);
+    
+    // Does the variable exist?
+    if (PyDict_Contains(dict, py_val_name)) {
+        
+        // If so, grab the reference and use Py_INCREF to own it.
+        new_obj = PyDict_GetItem(dict, py_val_name);
+        Py_INCREF(new_obj);
+        
+        // Pack the newly owned reference into a MATLAB scalar.
+        plhs[0] = mat_scalar_from_py_obj(new_obj);
+        
+    } else {
+        mexErrMsgTxt("No such variable exists in the Python environment's __main__ module.");
+    }
+    
+    // In any case, decref the value name.
+    Py_DECREF(py_val_name);
+    
+}
+
+/**
+ * MATLAB signature: value = py_getattr(object, name)
+ * 
+ * Returns an attribute of a Python object with a given pointer.
+ */
+void getattr(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+    // TODO: special case away the various Python types that have 1:1
+    //       representations in MATLAB, including ints, floats and NumPy
+    //       arrays of the appropriate dtypes.
+    
+    PyObject *new_obj = NULL, *obj;
+    char* val_name;
+    PyObject* py_val_name;
+    
+    if (nrhs != 2) {
+        mexErrMsgTxt("Expected exactly two arguments.");
+    }
+    
+    // Unbox the PyObject* from the MATLAB scalar.
+    obj = py_obj_from_mat_scalar(prhs[0]);
+    
+    // Fetch the name of the attribute to be queried.
+    get_matlab_str(prhs[1], &val_name);
+    // Convert the value name to a Python str.
+    py_val_name = PyString_FromString(val_name);
+    
+    // Does the attribute exist?
+    if (PyObject_HasAttr(obj, py_val_name)) {
+        
+        // If so, grab the reference. It's a new reference, so we don't need
+        // to take ownership.
+        new_obj = PyObject_GetAttr(obj, py_val_name);
+        
+        // Pack the newly owned reference into a MATLAB scalar.
+        plhs[0] = mat_scalar_from_py_obj(new_obj);
+        
+    } else {
+        mexErrMsgTxt("No such attribute exists.");
+    }
+    
+    // In any case, decref the attribute name.
+    Py_DECREF(py_val_name);
     
 }

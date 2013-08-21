@@ -1,5 +1,5 @@
 %%
-% test_case.m: Simple test cases for various pymex functions.
+% py_get.m: Pulls MATLAB values from Python's __main__ module.
 %%
 % (c) 2013 Christopher E. Granade (cgranade@cgranade.com).
 %    
@@ -20,33 +20,8 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Test py_eval %%
-py_eval y = 0
-disp('should print 0');
-py_eval print y
-py_eval y = lambda t: t**2
-disp('should print something about a lambda');
-
-%% Test py_put %%
-py_put('x', 'foo');
-disp('should print foo');
-py_eval print x
-
-py_put('x', 42.0);
-disp('should print 42.0');
-py_eval print x  
-
-%% Test py_get and PyObject %%
-py_eval x = 3
-m = py_get('x');
-disp('should print 3.0')
-disp(str(m));
-
-%% Test py_import and PyObject %%
-% This test is very, very flaky!!
-
-os = py_import('os');
-
-% After running this next line, clear all causes MATLAB to crash hard.
-% Something is very wrong in str().
-disp(str(os));
+function pyobj = py_get(varname)
+    % TODO: move call to PyObject constructor into pymex_fns.c, as
+    %       we will need to add special cases.
+    pyobj = PyObject(pymex_fns(int8(5), varname));
+end
