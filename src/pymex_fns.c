@@ -20,6 +20,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  **/
 
+// FIXME ///////////////////////////////////////////////////////////////////////
+/**
+ * - PyObject* pointers passed into mexFunction are always ints, frustrating
+ *   any attempt to distinguish types from within this C compliation unit.
+ *   Use mxGetClassName to check for this.
+ */
+
 // INCLUDES ////////////////////////////////////////////////////////////////////
 
 #include <Python.h>
@@ -36,6 +43,7 @@ typedef enum {
     PUT = 4,
     GET = 5,
     GETATTR = 6,
+    CALL = 7
 } function_t;
 
 // GLOBALS /////////////////////////////////////////////////////////////////////
@@ -43,6 +51,8 @@ typedef enum {
 bool has_initialized = false;
 PyObject* __main__ = NULL;
 PyObject* MatlabError = NULL;
+
+mxArray *MEX_NULL = NULL;
 
 // PROTOTYPES //////////////////////////////////////////////////////////////////
 
@@ -57,6 +67,7 @@ void str(int, mxArray**, int, const mxArray**);
 void put(int, mxArray**, int, const mxArray**);
 void get(int, mxArray**, int, const mxArray**);
 void getattr(int, mxArray**, int, const mxArray**);
+void call(int, mxArray**, int, const mxArray**);
 
 // PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
 // These functions are exposed to the embedded Python runtime via the
@@ -145,14 +156,21 @@ void cleanup() {
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     PyObject *pymex_module, *dict;
+    char buf[200];
     
     // Create the various variables we'll need in the switch below.
-    function_t function = *(int*)(mxGetData(prhs[0]));
+    function_t function = *(unsigned char*)(mxGetData(prhs[0]));
 
 	// Check whether we have already called Py_Initialize, and do it if need be.    
     if (!has_initialized) {
+        // Initialize Python environment.
         Py_Initialize();
+        
+        // Find the __main__ module.
         __main__ = PyImport_AddModule("__main__");
+        
+        // Register our cleanup function so that Py_Finalize will always get
+        // called.
         mexAtExit(cleanup);
         
         // Load embedded methods into the Python runtime environment.
@@ -164,6 +182,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             PyExc_StandardError, NULL);
         PyDict_SetItemString(dict, "MatlabError", MatlabError);
         
+        // Finally, set aside an empty array for returning as MATLAB's answer
+        // to null.
+        MEX_NULL = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
     }
     
     // Assume that nrhs >= 1, and that prhs[0] is of type int8 (classID == 8).
@@ -194,6 +215,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             
         case GETATTR:
             getattr(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case CALL:
+            call(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        default:
+            sprintf(buf, "Invalid function label %d received.", function);
+            mexErrMsgTxt(buf);
             break;
     }
 }
@@ -435,7 +465,7 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     mxArray const *m_val;
     
     if (nrhs != 2) {
-        mexErrMsgTxt("Expected exactly two argument.");
+        mexErrMsgTxt("Expected exactly two arguments.");
         return;
     }
     
@@ -476,6 +506,8 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     char* val_name;
     PyObject* py_val_name;
     
+    plhs[0] = MEX_NULL;
+    
     if (nrhs != 1) {
         mexErrMsgTxt("Expected exactly one argument.");
     }
@@ -500,7 +532,7 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         plhs[0] = mat_scalar_from_py_obj(new_obj);
         
     } else {
-        mexErrMsgTxt("No such variable exists in the Python environment's __main__ module.");
+        mexErrMsgTxt("No such variable exists in the Python environment's __main__ module.");        
     }
     
     // In any case, decref the value name.
@@ -509,7 +541,7 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 }
 
 /**
- * MATLAB signature: value = py_getattr(object, name)
+ * MATLAB signature: value = getattr(object, name)
  * 
  * Returns an attribute of a Python object with a given pointer.
  */
@@ -546,9 +578,39 @@ void getattr(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         
     } else {
         mexErrMsgTxt("No such attribute exists.");
+        plhs[0] = NULL;
     }
     
     // In any case, decref the attribute name.
     Py_DECREF(py_val_name);
     
+}
+
+/**
+ * MATLAB signature: value = call(object, varargin)
+ * 
+ * Calls a Python object with given arguments (but without keyword arguments).
+ */
+void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+
+    PyObject *args, *args_list = NULL, *retval = NULL, *callee;
+
+    callee = py_obj_from_mat_scalar(prhs[0]);
+    args_list = py_list_from_cell_array(prhs[1], 0, 1, NULL, NULL);
+    args = PySequence_Tuple(args_list);
+    Py_DECREF(args_list);
+    
+    // Check that the callee is, well, callable.
+    if (PyCallable_Check(callee)) {        
+        retval = PyObject_CallObject(callee, args);
+        plhs[0] = mat_scalar_from_py_obj(retval);
+    } else {
+        mexErrMsgTxt("Object is not callable.");
+    }
+    
+    if (PyErr_Occurred() != NULL) {
+        PyErr_Print();
+        mexErrMsgTxt("Python exception during call.");
+    }
+
 }

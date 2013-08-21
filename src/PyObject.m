@@ -25,30 +25,53 @@ classdef PyObject < handle
     properties (Access = public) % FIXME: public only for debugging purposes.
         py_pointer = [];
     end
+    
+    methods (Access = private)
+        function self = PyObject(py_ptr)
+            % FIXME: catch PyNone!
+            self.py_pointer = py_ptr;
+        end
+    end
+    
+    methods (Static)
+    
+        function newobj = new(py_ptr)
+            if py_ptr == 0
+                newobj = [];
+            else
+                newobj = PyObject(py_ptr);
+            end
+        end
+    
+    end
 
     methods
-        function self = PyObject(py_ptr)
-            self.py_pointer = py_ptr;
+        
+        function retval = call(self, varargin)
+            % TODO: unpack retval into a varargout.
+            retval = PyObject.new(pymex_fns(py_function_t.CALL, self.py_pointer, varargin));
         end
         
         function delete(self)
-            pymex_fns(int8(2), self.py_pointer);
+            pymex_fns(py_function_t.DECREF, self.py_pointer);
         end
         
         function s = str(self)
-            s = pymex_fns(int8(3), self.py_pointer);
+            s = pymex_fns(py_function_t.STR, self.py_pointer);
         end
         
         function obj = getattr(self, name)
             % TODO: move call to PyObject constructor into pymex_fns.c, as
             %       we will need to add special cases.
-            obj = PyObject(pymex_fns(int8(6), self.py_pointer, name));
+            obj = PyObject.new(pymex_fns(py_function_t.GETATTR, self.py_pointer, name));
         end
         
         % Hooboy, this will be a pain.
-        %function b = subsref(self, subs)
-        %    disp(subs.type)
-        %end
+        function b = subsref(self, subs)
+            if strcmp(subs.type, '.')
+                b = getattr(self, subs.subs);
+            end
+        end
     end
 
 end

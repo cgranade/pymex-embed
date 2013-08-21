@@ -30,5 +30,5 @@ function py_eval(varargin)
         cmd = varargin{1};
     end
 
-    pymex_fns(int8(0), cmd);
+    pymex_fns(py_function_t.EVAL, cmd);
 end

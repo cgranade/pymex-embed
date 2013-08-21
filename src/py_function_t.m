@@ -1,5 +1,5 @@
 %%
-% py_get.m: Pulls MATLAB values from Python's __main__ module.
+% py_function_t.m: Class copying `function_t` enumeration from pymex_fns.c.
 %%
 % (c) 2013 Christopher E. Granade (cgranade@cgranade.com).
 %    
@@ -20,8 +20,29 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-function pyobj = py_get(varname)
-    % TODO: move call to PyObject constructor into pymex_fns.c, as
-    %       we will need to add special cases.
-    pyobj = PyObject.new(pymex_fns(py_function_t.GET, varname));
+classdef (Sealed) py_function_t
+
+    % Note that we do not use an enumeration block here, as we do not want
+    % Java-style enums, but rather something where the constants are literal
+    % int values. Even subclassing from int8 does not result in the expected
+    % behavior, as such values are not passed correctly via MEX.
+
+    % Prevent construction.
+    methods (Access = private)
+        function self = py_function_t()
+        end
+    end
+    
+    %% ENUM VALUES %%
+    properties (Access = public, Constant)
+        EVAL = int8(0);
+        IMPORT = int8(1);
+        DECREF = int8(2);
+        STR = int8(3);
+        PUT = int8(4);
+        GET = int8(5);
+        GETATTR = int8(6);
+        CALL = int8(7);
+    end
+
 end
