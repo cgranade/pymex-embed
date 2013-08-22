@@ -116,11 +116,46 @@ PyObject* py_list_from_cell_array(
  * Types (float, int, str, ...) that have 1:1 reprsentations in MATLAB will be
  * converted, while any more complicated types will be boxed using the
  * MATLAB class PyObject.
+ *
+ * Note that this function DECREFs any value that isn't boxed into a PyObject
+ * MATLAB class.
  */
 mxArray* py2mat(const PyObject* py_value) {
+    mxArray* mat_value;
+
     // TODO: Right now, we aren't converting any types, but are just boxing
     //       them up.
-    return box_pyobject(py_value);
+    if (PyString_Check(py_value)) {
+        char *bufs[1];
+        bufs[0] = PyString_AsString(py_value);
+        mat_value = mxCreateCharMatrixFromStrings(1, bufs);
+        Py_XDECREF(py_value);
+    } else if (PyFloat_Check(py_value)) {
+        mat_value = mxCreateDoubleScalar(PyFloat_AsDouble(py_value));
+        Py_XDECREF(py_value);
+    } else if (PyBool_Check(py_value)) {
+        bool c_value = PyObject_IsTrue(py_value);
+        mat_value = mxCreateLogicalScalar(c_value);
+        Py_XDECREF(py_value);
+    } else if (PyList_Check(py_value)) {
+        // Make a 1xn cell array, and then pack everything into it by
+        // calling py2mat recursively. This will make ugly structures
+        // for nested Python lists, but it's kind of unavoidable due to
+        // the ability of Python lists to be jagged.
+        
+        int len = PyList_Size(py_value);
+        mat_value = mxCreateCellMatrix(1, len);
+        for (int idx_cell = 0; idx_cell < len; idx_cell++) {
+            mxSetCell(mat_value, idx_cell, py2mat(PyList_GetItem(py_value, idx_cell)));
+        }
+        Py_XDECREF(py_value);
+        
+    } else {
+        mat_value = box_pyobject(py_value);
+    }
+    
+    return mat_value;
+    
 }
 
 /**
@@ -148,20 +183,19 @@ PyObject* mat2py(const mxArray* m_value) {
             if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
                 mexErrMsgTxt("Putting arrays not yet supported.");
             }
-            new_obj = PyFloat_FromDouble(mxGetScalar(m_value));
-            Py_INCREF(new_obj);
+            // new, so already owned.
+            new_obj = PyFloat_FromDouble(mxGetScalar(m_value)); 
             return new_obj;
             
         case mxCHAR_CLASS:
             get_matlab_str(m_value, &buf);
+            // new, so already owned.
             new_obj = PyString_FromString(buf);
-            Py_INCREF(new_obj);
             return new_obj;
             
         case mxFUNCTION_CLASS:
             mexErrMsgTxt("Calling MATLAB functions from within Python is not yet supported.");
             return NULL;
-            
             
     }
     
