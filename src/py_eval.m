@@ -20,7 +20,7 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-function py_eval(varargin)
+function retval = py_eval(varargin)
     if nargin > 1
         cmd = varargin{1};
         for idx = 2:nargin
@@ -30,5 +30,7 @@ function py_eval(varargin)
         cmd = varargin{1};
     end
 
-    pymex_fns(py_function_t.EVAL, cmd);
+    % FIXME: always returns None for some reason.
+    retval = pymex_fns(py_function_t.EVAL, cmd);
+    
 end

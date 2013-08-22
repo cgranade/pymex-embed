@@ -264,6 +264,7 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 void eval(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     char* arg_buf;
+    PyObject *retval, *py_dict;
     
     // We expect there to be a single argument for now,
     // consisting of a string to be run.
@@ -274,8 +275,21 @@ void eval(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     get_matlab_str(prhs[0], &arg_buf);
     
+    // Grab a borrowed reference to the __main__ module dict,
+    // so that we can use it for globals() and locals().
+    py_dict = PyModule_GetDict(__main__);
+    
     // Now evaluate the string as a Python line.
-    PyRun_SimpleString(arg_buf);
+    // This is a new reference, so we already own it.
+    retval = PyRun_String(arg_buf, Py_single_input, py_dict, py_dict);
+    
+    if (nlhs >= 1) {
+        plhs[0] = py2mat(retval);
+    } else {
+        // DECREF the new reference, since we won't be keeping it after all.
+        Py_XDECREF(plhs[0]);
+    }
+    
 }
 
 void decref(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
@@ -285,12 +299,7 @@ void decref(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         return;
     }
     
-    if (mxGetClassID(prhs[0]) != mxINT64_CLASS) {
-        mexErrMsgTxt("Expected an int64.");
-        return;
-    }
-    
-    Py_XDECREF(py_obj_from_mat_scalar(prhs[0]));
+    Py_XDECREF(unbox_pyobject(prhs[0]));
     
 }
 
@@ -427,7 +436,7 @@ void getattr(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         new_obj = PyObject_GetAttr(obj, py_val_name);
         
         // Pack the newly owned reference into a MATLAB scalar.
-        plhs[0] = mat_scalar_from_py_obj(new_obj);
+        plhs[0] = py2mat(new_obj);
         
     } else {
         mexErrMsgTxt("No such attribute exists.");
@@ -456,7 +465,7 @@ void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // Check that the callee is, well, callable.
     if (PyCallable_Check(callee)) {        
         retval = PyObject_CallObject(callee, args);
-        plhs[0] = mat_scalar_from_py_obj(retval);
+        plhs[0] = py2mat(retval);
     } else {
         mexErrMsgTxt("Object is not callable.");
     }

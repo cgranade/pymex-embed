@@ -20,15 +20,28 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-%% Test py_eval %%
-py_eval y = 0
-disp('should print 0');
-py_eval print y
-py_eval y = lambda t: t**2
-disp('should print something about a lambda');
+%% py_eval Basics %%
+py_eval('x = 42');
+x = py_get('x');
+disp('Should print "42".');
+disp(x);
+
+%% Using py_eval to get Python builtins %%
+py_eval('t = type');
+py_type = py_get('t');
+disp('Should print "<type ''type''>');
+disp(py_type);
+disp('Note that if py_get can''t convert a Python value, it wraps it in a PyObject:');
+disp(class(py_type));
+
+%% Calling PyObjects %%
+% Double arrays are converted to Python floats.
+disp(py_type(42));
 
 %% Test py_put %%
+% We can put values, too.
 py_put('x', 'foo');
+% Printing from within Python is currently very weird.
 disp('should print foo');
 py_eval print x
 
@@ -36,17 +49,15 @@ py_put('x', 42.0);
 disp('should print 42.0');
 py_eval print x  
 
-%% Test py_get and PyObject %%
-py_eval x = 3
-m = py_get('x');
-disp('should print 3.0')
-disp(str(m));
+%% Pulling from within Python %%
+x = 42.1;
+py_eval('import pymex');
+py_eval('x = pymex.get("x")');
+xq = py_get('x');
+disp(xq);
 
 %% Test py_import and PyObject %%
 % This test is very, very flaky!!
 
 os = py_import('os');
 
-% After running this next line, clear all causes MATLAB to crash hard.
-% Something is very wrong in str().
-disp(str(os));

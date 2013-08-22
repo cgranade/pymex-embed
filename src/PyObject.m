@@ -47,13 +47,33 @@ classdef PyObject < handle
 
     methods
         
-        function retval = call(self, varargin)
-            % TODO: unpack retval into a varargout.
-            retval = PyObject.new(pymex_fns(py_function_t.CALL, self.py_pointer, varargin));
-        end
+        %% MATLAB MAGIC METHODS %%
         
         function delete(self)
-            pymex_fns(py_function_t.DECREF, self.py_pointer);
+            pymex_fns(py_function_t.DECREF, self);
+        end
+        
+        function b = subsref(self, subs)
+            if strcmp(subs.type, '.')
+                b = getattr(self, subs.subs);
+            elseif strcmp(subs.type, '()')
+                b = call(self, subs.subs{:});
+            end
+        end
+        
+        function disp(self)
+            fprintf('%s\n', str(self))
+        end
+        
+        function display(self)
+            fprintf('%s\n', str(self)) % TODO: change to repr.
+        end
+        
+        %% OTHER METHODS %%
+        
+        function retval = call(self, varargin)
+            % TODO: unpack retval into a varargout.
+            retval = pymex_fns(py_function_t.CALL, self.py_pointer, varargin);
         end
         
         function s = str(self)
@@ -61,17 +81,9 @@ classdef PyObject < handle
         end
         
         function obj = getattr(self, name)
-            % TODO: move call to PyObject constructor into pymex_fns.c, as
-            %       we will need to add special cases.
-            obj = PyObject.new(pymex_fns(py_function_t.GETATTR, self.py_pointer, name));
+            obj = pymex_fns(py_function_t.GETATTR, self.py_pointer, name);
         end
         
-        % Hooboy, this will be a pain.
-        %function b = subsref(self, subs)
-        %    if strcmp(subs.type, '.')
-        %        b = getattr(self, subs.subs);
-        %    end
-        %end
     end
 
 end
