@@ -22,9 +22,9 @@
 
 function rebuild_pymex()
     if isunix
-        mex -g -O CFLAGS="--std=c99 -fPIC" pymex_fns.c -I/usr/include/python2.7 -lpython2.7
+        mex -g -O CFLAGS="--std=c99 -fPIC" pymex_fns.c pymex_marshal.c -I/usr/include/python2.7 -lpython2.7
     elseif ispc
-        mex -g -O pymex_fns.c -IC:\Python27\include -LC:\Python27\libs -lpython27
+        mex -g -O pymex_fns.c pymex_marshal.c -IC:\Python27\include -LC:\Python27\libs -lpython27
     else
         disp('Not yet supported.');
     end

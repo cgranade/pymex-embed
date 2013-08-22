@@ -57,7 +57,7 @@ classdef PyObject < handle
         end
         
         function s = str(self)
-            s = pymex_fns(py_function_t.STR, self.py_pointer);
+            s = pymex_fns(py_function_t.STR, self);
         end
         
         function obj = getattr(self, name)
@@ -67,11 +67,11 @@ classdef PyObject < handle
         end
         
         % Hooboy, this will be a pain.
-        function b = subsref(self, subs)
-            if strcmp(subs.type, '.')
-                b = getattr(self, subs.subs);
-            end
-        end
+        %function b = subsref(self, subs)
+        %    if strcmp(subs.type, '.')
+        %        b = getattr(self, subs.subs);
+        %    end
+        %end
     end
 
 end

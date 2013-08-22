@@ -32,6 +32,7 @@
 #include <Python.h>
 #include <mex.h>
 #include <stdio.h>
+#include "pymex_marshal.h"
 
 // CONSTANTS ///////////////////////////////////////////////////////////////////
 
@@ -55,10 +56,6 @@ PyObject* MatlabError = NULL;
 mxArray *MEX_NULL = NULL;
 
 // PROTOTYPES //////////////////////////////////////////////////////////////////
-
-void get_matlab_str(const mxArray* m_str, char** c_str);
-PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar);
-PyObject* py_obj_from_mat_value(const mxArray* m_value);
 
 void import(int, mxArray**, int, const mxArray**);
 void eval(int, mxArray**, int, const mxArray**);
@@ -117,7 +114,7 @@ static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
     mat_var = mexGetVariable(workspace, name);
     
     if (mat_var != NULL) {    
-        py_var = py_obj_from_mat_value(mat_var);
+        py_var = mat2py(mat_var);
         mxDestroyArray(mat_var);
     } else {
         PyErr_SetString(PyExc_NameError,
@@ -228,131 +225,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
 }
 
-// UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
-
-/**
- * Gets the contents of a MATLAB string as a C string (zero-terminated char*).
- *
- * @param m_str: Pointer to a MATLAB array containing a string to be extracted.
- * @param c_str: Pointer that will be assigned to the new C string containing
- *     the contents of `m_str`.
- */
-void get_matlab_str(const mxArray* m_str, char** c_str) {
-    int status;
-    
-    // Make a buffer using mxCalloc, leaving room for the \0.
-    int buf_size = (mxGetM(m_str) * mxGetN(m_str)) + 1;
-    *c_str = mxCalloc(buf_size, sizeof(char));
-    
-    // Attempt to convert the MATLAB string into a C string.
-    status = mxGetString(m_str, *c_str, buf_size);
-    if (status != 0) {
-        mexWarnMsgTxt("Not enough space. String is truncated.");
-    }
-}
-
-/**
- * Converts a MATLAB scalar containing a pointer into a PyObject*.
- */
-PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar) {
-    return *(PyObject**)mxGetData(m_scalar);
-}
-
-/**
- * Boxes a PyObject* into a MATLAB scalar (1x1 array of type long long int).
- * Used to expose pointers to the PyObject MATLAB class.
- */
-mxArray* mat_scalar_from_py_obj(const PyObject* py_obj) {
-    mxArray *m_scalar;
-    m_scalar = mxCreateNumericMatrix(1, 1, mxINT64_CLASS, mxREAL);
-    ((long long int*)mxGetData(m_scalar))[0] = (long long int) py_obj;
-    return m_scalar;
-}
-
-/**
- * Recursively converts dimensions of a cell array to Python lists.
- */
-PyObject* py_list_from_cell_array(
-    const mxArray* cell_array, int idx_dim, mwSize nsubs, mwIndex* subs,
-    mwIndex* dims
-) {
-    
-    PyObject *py_list, *new_el;
-    int idx_el = 0;
-    
-    if (subs == NULL) {
-        subs = mxCalloc(nsubs, sizeof(mwIndex));
-    }
-    
-    if (dims == NULL) {
-        dims = mxGetDimensions(cell_array);
-    }
-    
-    py_list = PyList_New(dims[idx_dim]);
-    for (idx_el = 0; idx_el < dims[idx_dim]; idx_el++) {
-        subs[idx_dim] = idx_el;
-        if (idx_dim != nsubs - 1) {
-            new_el = py_list_from_cell_array(
-                cell_array, idx_dim + 1, nsubs, subs, dims
-            );
-        } else {
-            new_el = py_obj_from_mat_value(
-                mxGetCell(cell_array, mxCalcSingleSubscript(
-                    cell_array, nsubs, subs
-                ))
-            );
-            if (new_el == NULL) {
-                mexWarnMsgTxt("Unsupported value in cell array; substituting with None.");
-                new_el = Py_None;
-                Py_INCREF(Py_None);
-            }
-        }
-        PyList_SetItem(py_list, idx_el, new_el);
-    }
-    return py_list;
-    
-}
-
-/**
- * Given a MATLAB array, creates and returns a pointer to an appropriate
- * PyObject. If a new object cannot be created, returns NULL.
- */
-PyObject* py_obj_from_mat_value(const mxArray* m_value) {
-    PyObject* new_obj = NULL;
-    char* buf;
-    int nsubs;
-    
-    switch (mxGetClassID(m_value)) {
-        
-        case mxCELL_CLASS:
-            nsubs = mxGetNumberOfDimensions(m_value);
-            return py_list_from_cell_array(m_value, 0, nsubs, NULL, NULL);
-        
-        case mxDOUBLE_CLASS:
-            if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
-                mexErrMsgTxt("Putting arrays not yet supported.");
-            }
-            new_obj = PyFloat_FromDouble(mxGetScalar(m_value));
-            Py_INCREF(new_obj);
-            return new_obj;
-            
-        case mxCHAR_CLASS:
-            get_matlab_str(m_value, &buf);
-            new_obj = PyString_FromString(buf);
-            Py_INCREF(new_obj);
-            return new_obj;
-            
-        case mxFUNCTION_CLASS:
-            mexErrMsgTxt("Calling MATLAB functions from within Python is not yet supported.");
-            return NULL;
-            
-            
-    }
-    
-    // If we got here, return something sensible.
-    return NULL;
-    
-}
 
 // MEX FUNCTIONS ///////////////////////////////////////////////////////////////
 
@@ -371,7 +243,7 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     get_matlab_str(prhs[0], &name_buf);
     
     py_name = PyString_FromString(name_buf);
-    py_module = PyImport_Import(py_name); // New reference, so now incref needed.
+    py_module = PyImport_Import(py_name); // New reference, so no incref needed.
     Py_DECREF(py_name);
     
     if (py_module == NULL) {
@@ -385,9 +257,7 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // FIXME: Find a way to DECREF this later!
         // Py_DECREF(py_module);
     } else {
-        plhs[0] = mat_scalar_from_py_obj(py_module);
-        // plhs[0] = mxCreateNumericMatrix(1, 1, mxINT64_CLASS, mxREAL);
-        // ((long long int*)mxGetData(plhs[0]))[0] = (long long int) py_module;
+        plhs[0] = py2mat(py_module);
     }
 }
 
@@ -427,23 +297,10 @@ void decref(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     PyObject *py_obj, *py_str;
+    char buf[500];
     
-    if (nrhs != 1) {
-        mexErrMsgTxt("Expected exactly one argument.");
-        return;
-    }
-    
-    if (mxGetClassID(prhs[0]) != mxINT64_CLASS) {
-        mexErrMsgTxt("Expected an int64.");
-        return;
-    }
-    
-    if (nlhs != 1) {
-        mexErrMsgTxt("Expected one output argument.");
-        return;
-    }
-    
-    py_obj = py_obj_from_mat_scalar(prhs[0]);
+    // Try to get the MATLAB argument as a PyObject.
+    py_obj = mat2py(prhs[0]);    
     py_str = PyObject_Str(py_obj);
     
     if (py_str == NULL) {
@@ -474,7 +331,7 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // FIXME: currently assuming n = m = 1 (scalar case).
     
     m_val = prhs[1];
-    new_obj = py_obj_from_mat_value(m_val);
+    new_obj = mat2py(m_val);
     
     if (new_obj != NULL) {
         dict = PyModule_GetDict(__main__);
@@ -498,10 +355,6 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
  * Returns the contents of a Python variable as a MATLAB array.
  */
 void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
-    // TODO: special case away the various Python types that have 1:1
-    //       representations in MATLAB, including ints, floats and NumPy
-    //       arrays of the appropriate dtypes.
-    
     PyObject *new_obj = NULL, *dict;
     char* val_name;
     PyObject* py_val_name;
@@ -529,7 +382,7 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         Py_INCREF(new_obj);
         
         // Pack the newly owned reference into a MATLAB scalar.
-        plhs[0] = mat_scalar_from_py_obj(new_obj);
+        plhs[0] = py2mat(new_obj);
         
     } else {
         mexErrMsgTxt("No such variable exists in the Python environment's __main__ module.");        

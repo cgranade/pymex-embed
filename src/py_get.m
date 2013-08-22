@@ -23,5 +23,6 @@
 function pyobj = py_get(varname)
     % TODO: move call to PyObject constructor into pymex_fns.c, as
     %       we will need to add special cases.
-    pyobj = PyObject.new(pymex_fns(py_function_t.GET, varname));
+    pyobj = pymex_fns(py_function_t.GET, varname);
+    %pyobj = PyObject.new(ptr);
 end
