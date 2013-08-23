@@ -166,6 +166,10 @@ PyObject* mat2py(const mxArray* m_value) {
     PyObject* new_obj = NULL;
     char* buf;
     int nsubs;
+    int n_fields;
+    int idx_field;
+    char* key;
+    PyObject* value = NULL;
     
     // First, check if the MATLAB value is a boxed PyObject.
     if (is_boxed_pyobject(m_value)) {
@@ -178,6 +182,20 @@ PyObject* mat2py(const mxArray* m_value) {
         case mxCELL_CLASS:
             nsubs = mxGetNumberOfDimensions(m_value);
             return py_list_from_cell_array(m_value, 0, nsubs, NULL, NULL);
+        
+        case mxSTRUCT_CLASS:
+            // TODO: enforce 1x1 shape.
+            // Treat MATLAB structures as Python dicts.
+            // Note that this breaks roundtrips (Python dicts are supersets
+            // of MATLAB structs), but it's as close as we'll get.
+            n_fields = mxGetNumberOfFields(m_value);
+            new_obj = PyDict_New();
+            for (idx_field = 0; idx_field < n_fields; ++idx_field) {
+                key = mxGetFieldNameByNumber(m_value, idx_field);
+                value = mat2py(mxGetFieldByNumber(m_value, 0, idx_field));
+                PyDict_SetItemString(new_obj, key, value);
+            }
+            return new_obj;
         
         case mxDOUBLE_CLASS:
             if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
