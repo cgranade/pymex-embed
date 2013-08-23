@@ -68,7 +68,7 @@ classdef PyObject < handle
         end
         
         function display(self)
-            fprintf('%s\n', str(self)) % TODO: change to repr.
+            fprintf('%s\n', str(self))
         end
         
         function product = mtimes(self, other)
@@ -82,8 +82,16 @@ classdef PyObject < handle
             retval = pymex_fns(py_function_t.CALL, self, varargin);
         end
         
+        function s = dir(self)
+            s = call(py_builtins.dir, self);
+        end
+        
         function s = str(self)
             s = pymex_fns(py_function_t.STR, self);
+        end
+        
+        function s = repr(self)
+            s = call(py_builtins.repr, self);
         end
         
         function obj = getattr(self, name)

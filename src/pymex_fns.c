@@ -421,7 +421,7 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     PyObject *new_obj = NULL, *dict;
     char* val_name;
-    PyObject* py_val_name;
+    PyObject *py_val_name, *__builtins__dict;
     
     plhs[0] = MEX_NULL;
     
@@ -437,6 +437,7 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     // Find __main__'s dict.
     dict = PyModule_GetDict(__main__);
+    __builtins__dict = PyEval_GetBuiltins();
     
     // Does the variable exist?
     if (PyDict_Contains(dict, py_val_name)) {
@@ -448,6 +449,11 @@ void get(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // Pack the newly owned reference into a MATLAB scalar.
         plhs[0] = py2mat(new_obj);
         
+    } else if (PyDict_Contains(__builtins__dict, py_val_name)) {
+        // No? Then try __builtins__.
+        new_obj = PyDict_GetItem(__builtins__dict, py_val_name);
+        Py_INCREF(new_obj);
+        plhs[0] = py2mat(new_obj);        
     } else {
         mexErrMsgTxt("No such variable exists in the Python environment's __main__ module.");        
     }
