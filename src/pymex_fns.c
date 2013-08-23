@@ -512,8 +512,14 @@ void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     PyObject *args, *args_list = NULL, *retval = NULL, *callee;
 
-    callee = py_obj_from_mat_scalar(prhs[0]);
-    args_list = py_list_from_cell_array(prhs[1], 0, 1, NULL, NULL);
+    callee = mat2py(prhs[0]);
+    
+    // Ensure it's a cell array!
+    if (!mxIsCell(prhs[1])) {
+        mexErrMsgTxt("Expected cell array of args.");
+    }
+    
+    args_list = mat2py(prhs[1]);
     args = PySequence_Tuple(args_list);
     Py_DECREF(args_list);
     
