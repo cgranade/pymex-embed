@@ -97,6 +97,26 @@ static PyObject* pymex_mateval(PyObject* self, PyObject* str) {
     
 }
 
+static PyObject* pymex_matwrite(PyObject* self, PyObject* str) {
+
+    char *c_str;
+   
+    if (str == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Got null instead of a string.");
+        return NULL;
+    } else if (!PyString_Check(str)) {
+        PyErr_SetString(PyExc_TypeError, "Expected string argument.");
+        return NULL;
+    }
+    
+    c_str = PyString_AsString(str);
+    
+    mexPrintf(c_str);
+    
+    return Py_None;
+
+}
+
 static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
     
     char *name;
@@ -138,6 +158,8 @@ static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
 static PyMethodDef PymexMethods[] = {
     {"mateval", pymex_mateval, METH_O,
         "Evaluates MATLAB code inside the PyMEX host."},
+    {"matwrite", pymex_matwrite, METH_O,
+        "Write a string to the MATLAB command window or console."},
     {"get", (PyCFunction)pymex_get, METH_VARARGS | METH_KEYWORDS,
         "Returns the value of a MATLAB variable."},
         
@@ -156,6 +178,17 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     PyObject *pymex_module, *dict;
     char buf[200];
+    char *stdout_class = "\n\
+import pymex\n\
+import sys\n\
+\n\
+class PymexStdout(object):\n\
+    def write(self, val):\n\
+        pymex.matwrite(val)\n\
+\n\
+old_stdout = sys.stdout\n\
+sys.stdout = PymexStdout()\n\
+";
     
     // Create the various variables we'll need in the switch below.
     function_t function = *(unsigned char*)(mxGetData(prhs[0]));
@@ -180,6 +213,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         MatlabError = PyErr_NewException("pymex.MatlabError",
             PyExc_StandardError, NULL);
         PyDict_SetItemString(dict, "MatlabError", MatlabError);
+        
+        // Add a new class to the pymex module to redirect stdout.
+        PyRun_SimpleString(stdout_class);
         
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
