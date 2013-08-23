@@ -56,6 +56,10 @@ py_eval('x = pymex.get("x")');
 xq = py_get('x');
 disp(xq);
 
+%% Tests that produce wrong output %%
+py_put('x', struct('x', 1, 'y', 'foo', 'z', struct('a', {'alpha', 'beta', 42}, 'b', 'echo')))
+py_eval print x;
+
 %% Test py_import and PyObject %%
 % This test is very, very flaky!!
 

@@ -71,11 +71,15 @@ classdef PyObject < handle
             fprintf('%s\n', str(self)) % TODO: change to repr.
         end
         
+        function product = mtimes(self, other)
+            product = pymex_fns(py_function_t.MUL, self, other);
+        end
+        
         %% OTHER METHODS %%
         
         function retval = call(self, varargin)
             % TODO: unpack retval into a varargout.
-            retval = pymex_fns(py_function_t.CALL, self.py_pointer, varargin);
+            retval = pymex_fns(py_function_t.CALL, self, varargin);
         end
         
         function s = str(self)

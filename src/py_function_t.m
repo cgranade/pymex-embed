@@ -44,6 +44,7 @@ classdef (Sealed) py_function_t
         GETATTR = int8(6);
         CALL = int8(7);
         GETITEM = int8(8);
+        MUL = int8(9);
     end
 
 end

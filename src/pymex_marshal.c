@@ -173,7 +173,9 @@ PyObject* mat2py(const mxArray* m_value) {
     
     // First, check if the MATLAB value is a boxed PyObject.
     if (is_boxed_pyobject(m_value)) {
-        return unbox_pyobject(m_value);
+        new_obj = unbox_pyobject(m_value);
+        Py_INCREF(new_obj);
+        return new_obj;
     }
     
     // If it wasn't, figure out how to marshal the native-MATLAB data.

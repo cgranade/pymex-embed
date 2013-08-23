@@ -46,6 +46,7 @@ typedef enum {
     GETATTR = 6,
     CALL = 7,
     GETITEM = 8,
+    MUL = 9,
 } function_t;
 
 // GLOBALS /////////////////////////////////////////////////////////////////////
@@ -67,6 +68,7 @@ void get(int, mxArray**, int, const mxArray**);
 void getattr(int, mxArray**, int, const mxArray**);
 void call(int, mxArray**, int, const mxArray**);
 void getitem(int, mxArray**, int, const mxArray**);
+void mul(int, mxArray**, int, const mxArray**);
 
 // PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
 // These functions are exposed to the embedded Python runtime via the
@@ -258,6 +260,10 @@ sys.stdout = PymexStdout()\n\
             
         case GETITEM:
             getitem(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case MUL:
+            mul(nlhs, plhs, nrhs - 1, prhs + 1);
             break;
             
         default:
@@ -550,5 +556,19 @@ void getitem(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     // New reference!
     plhs[0] = py2mat(py_value);
+    
+}
+
+void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+
+    if (nrhs != 2) {
+        mexErrMsgTxt("Expected exactly two arguments.");
+    }
+    
+    PyObject *a = mat2py(prhs[0]), *b = mat2py(prhs[1]);
+    
+    plhs[0] = py2mat(PyNumber_Multiply(a, b));
+    Py_XDECREF(a);
+    Py_XDECREF(b);
     
 }
