@@ -44,7 +44,8 @@ typedef enum {
     PUT = 4,
     GET = 5,
     GETATTR = 6,
-    CALL = 7
+    CALL = 7,
+    GETITEM = 8,
 } function_t;
 
 // GLOBALS /////////////////////////////////////////////////////////////////////
@@ -65,6 +66,7 @@ void put(int, mxArray**, int, const mxArray**);
 void get(int, mxArray**, int, const mxArray**);
 void getattr(int, mxArray**, int, const mxArray**);
 void call(int, mxArray**, int, const mxArray**);
+void getitem(int, mxArray**, int, const mxArray**);
 
 // PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
 // These functions are exposed to the embedded Python runtime via the
@@ -218,6 +220,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             call(nlhs, plhs, nrhs - 1, prhs + 1);
             break;
             
+        case GETITEM:
+            getitem(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
         default:
             sprintf(buf, "Invalid function label %d received.", function);
             mexErrMsgTxt(buf);
@@ -225,6 +231,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
 }
 
+// DEBUG FUNCTIONS /////////////////////////////////////////////////////////////
+
+void print(PyObject* py_obj) {
+    PyObject* py_str = PyObject_Str(py_obj);
+    mexPrintf("%s\n", PyString_AsString(py_str));
+    Py_XDECREF(py_str);    
+}
 
 // MEX FUNCTIONS ///////////////////////////////////////////////////////////////
 
@@ -475,4 +488,31 @@ void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         mexErrMsgTxt("Python exception during call.");
     }
 
+}
+
+/**
+ * MATLAB signature: value = getitem(object, key)
+ * 
+ * Accesses an item from the Python object "object", emulating `object[key]`
+ * notation. 
+ */
+void getitem(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+
+    PyObject *target = mat2py(prhs[0]), *key = mat2py(prhs[1]);
+    PyObject *py_value;
+    
+    py_value = PyObject_GetItem(target, key);
+    
+    if (py_value == NULL) {
+        mexErrMsgTxt("Exception getting item.");
+    }
+    
+    if (PyErr_Occurred() != NULL) {
+        PyErr_Print();
+        mexErrMsgTxt("Python exception during call.");
+    }
+    
+    // New reference!
+    plhs[0] = py2mat(py_value);
+    
 }

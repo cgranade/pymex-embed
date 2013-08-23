@@ -43,6 +43,7 @@ classdef (Sealed) py_function_t
         GET = int8(5);
         GETATTR = int8(6);
         CALL = int8(7);
+        GETITEM = int8(8);
     end
 
 end

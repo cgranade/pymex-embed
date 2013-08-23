@@ -58,6 +58,8 @@ classdef PyObject < handle
                 b = getattr(self, subs.subs);
             elseif strcmp(subs.type, '()')
                 b = call(self, subs.subs{:});
+            elseif strcmp(subs.type, '{}')
+                b = getitem(self, subs.subs{:});
             end
         end
         
@@ -81,7 +83,11 @@ classdef PyObject < handle
         end
         
         function obj = getattr(self, name)
-            obj = pymex_fns(py_function_t.GETATTR, self.py_pointer, name);
+            obj = pymex_fns(py_function_t.GETATTR, self, name);
+        end
+        
+        function value = getitem(self, key)
+            value = pymex_fns(py_function_t.GETITEM, self, key);
         end
         
     end
