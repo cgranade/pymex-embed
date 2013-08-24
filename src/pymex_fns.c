@@ -138,7 +138,7 @@ static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
     mat_var = mexGetVariable(workspace, name);
     
     if (mat_var != NULL) {    
-        py_var = mat2py(mat_var);
+        py_var = mat2py(mat_var, false);
         mxDestroyArray(mat_var);
     } else {
         PyErr_SetString(PyExc_NameError,
@@ -364,7 +364,7 @@ void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     char buf[500];
     
     // Try to get the MATLAB argument as a PyObject.
-    py_obj = mat2py(prhs[0]);    
+    py_obj = mat2py(prhs[0], false);    
     py_str = PyObject_Str(py_obj);
     
     if (py_str == NULL) {
@@ -395,7 +395,7 @@ void put(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // FIXME: currently assuming n = m = 1 (scalar case).
     
     m_val = prhs[1];
-    new_obj = mat2py(m_val);
+    new_obj = mat2py(m_val, false);
     
     if (new_obj != NULL) {
         dict = PyModule_GetDict(__main__);
@@ -518,20 +518,28 @@ void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     PyObject *args, *args_list = NULL, *retval = NULL, *callee;
 
-    callee = mat2py(prhs[0]);
+    callee = mat2py(prhs[0], false);
     
     // Ensure it's a cell array!
     if (!mxIsCell(prhs[1])) {
         mexErrMsgTxt("Expected cell array of args.");
     }
     
-    args_list = mat2py(prhs[1]);
+    args_list = mat2py(prhs[1], true);
     args = PySequence_Tuple(args_list);
     Py_DECREF(args_list);
     
     // Check that the callee is, well, callable.
     if (PyCallable_Check(callee)) {        
         retval = PyObject_CallObject(callee, args);
+        if (retval == NULL) {
+            if (PyErr_Occurred() != NULL) {
+                PyErr_Print();
+                mexErrMsgTxt("Python exception during call.");
+            } else {
+                mexErrMsgTxt("Call failed for unknown reason.");
+            }
+        }
         plhs[0] = py2mat(retval);
     } else {
         mexErrMsgTxt("Object is not callable.");
@@ -552,7 +560,7 @@ void call(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
  */
 void getitem(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
-    PyObject *target = mat2py(prhs[0]), *key = mat2py(prhs[1]);
+    PyObject *target = mat2py(prhs[0], false), *key = mat2py(prhs[1], false);
     PyObject *py_value;
     
     py_value = PyObject_GetItem(target, key);
@@ -577,7 +585,7 @@ void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         mexErrMsgTxt("Expected exactly two arguments.");
     }
     
-    PyObject *a = mat2py(prhs[0]), *b = mat2py(prhs[1]);
+    PyObject *a = mat2py(prhs[0], false), *b = mat2py(prhs[1], false);
     
     plhs[0] = py2mat(PyNumber_Multiply(a, b));
     Py_XDECREF(a);

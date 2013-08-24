@@ -70,7 +70,7 @@ PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar) {
  */
 PyObject* py_list_from_cell_array(
     const mxArray* cell_array, int idx_dim, mwSize nsubs, mwIndex* subs,
-    mwIndex* dims
+    mwIndex* dims, bool flatten1
 ) {
     
     PyObject *py_list, *new_el;
@@ -84,18 +84,49 @@ PyObject* py_list_from_cell_array(
         dims = mxGetDimensions(cell_array);
     }
     
+    // Check if this dimension is 1 and if so, recurse immediately,
+    // or (if we're at the bottom), return the last element.
+    if (flatten1 && dims[idx_dim] == 1) {
+        subs[idx_dim] = 0;
+        
+        // Decide to recurse of return base case.
+        if (idx_dim == nsubs - 1) {
+            new_el = mat2py(
+                mxGetCell(cell_array, mxCalcSingleSubscript(
+                    cell_array, nsubs, subs
+                )), false
+            );
+        } else {
+            // Jump ahead one level.
+            new_el = py_list_from_cell_array(
+                cell_array, idx_dim + 1, nsubs, subs, dims, flatten1
+            );
+        }
+        
+        // We should always return a list of some kind, so if we're at the 0th
+        // dimension and about to return a non-list, do something different.
+        if (!PyList_Check(new_el)) {
+            py_list = PyList_New(1);
+            PyList_SetItem(py_list, 0, new_el);
+            return py_list;
+        } else {
+            return new_el;
+        }
+    }
+    
+    // We're still here, so there must be something to do.
     py_list = PyList_New(dims[idx_dim]);
     for (idx_el = 0; idx_el < dims[idx_dim]; idx_el++) {
         subs[idx_dim] = idx_el;
         if (idx_dim != nsubs - 1) {
             new_el = py_list_from_cell_array(
-                cell_array, idx_dim + 1, nsubs, subs, dims
+                cell_array, idx_dim + 1, nsubs, subs, dims, flatten1
             );
         } else {
             new_el = mat2py(
                 mxGetCell(cell_array, mxCalcSingleSubscript(
                     cell_array, nsubs, subs
-                ))
+                )), false
             );
             if (new_el == NULL) {
                 mexWarnMsgTxt("Unsupported value in cell array; substituting with None.");
@@ -121,6 +152,10 @@ PyObject* py_list_from_cell_array(
  * MATLAB class.
  */
 mxArray* py2mat(const PyObject* py_value) {
+    if (py_value == NULL) {
+        mexErrMsgTxt("Python value to marshal was NULL. This shouldn't happen.");
+    }
+
     mxArray* mat_value;
 
     // TODO: Right now, we aren't converting any types, but are just boxing
@@ -161,8 +196,15 @@ mxArray* py2mat(const PyObject* py_value) {
 /**
  * Given a MATLAB array, creates and returns a pointer to an appropriate
  * PyObject. If a new object cannot be created, returns NULL.
+ *
+ * @param flatten1: If true, dimensions of length one will be removed.
+ *     [Default: false]
  */
-PyObject* mat2py(const mxArray* m_value) {
+PyObject* mat2py(const mxArray* m_value, bool flatten1) {
+    if (m_value == NULL) {
+        mexErrMsgTxt("MATLAB value to marshal was NULL. This shouldn't happen.");
+    }
+    
     PyObject* new_obj = NULL;
     char* buf;
     int nsubs;
@@ -183,7 +225,7 @@ PyObject* mat2py(const mxArray* m_value) {
         
         case mxCELL_CLASS:
             nsubs = mxGetNumberOfDimensions(m_value);
-            return py_list_from_cell_array(m_value, 0, nsubs, NULL, NULL);
+            return py_list_from_cell_array(m_value, 0, nsubs, NULL, NULL, flatten1);
         
         case mxSTRUCT_CLASS:
             // TODO: enforce 1x1 shape.
@@ -194,7 +236,7 @@ PyObject* mat2py(const mxArray* m_value) {
             new_obj = PyDict_New();
             for (idx_field = 0; idx_field < n_fields; ++idx_field) {
                 key = mxGetFieldNameByNumber(m_value, idx_field);
-                value = mat2py(mxGetFieldByNumber(m_value, 0, idx_field));
+                value = mat2py(mxGetFieldByNumber(m_value, 0, idx_field), false);
                 PyDict_SetItemString(new_obj, key, value);
             }
             return new_obj;

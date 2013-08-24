@@ -38,12 +38,13 @@ void get_matlab_str(const mxArray* m_str, char** c_str);
 PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar);
 mxArray* mat_scalar_from_py_obj(const PyObject* py_obj);
 
-PyObject* mat2py(const mxArray* m_value);
+PyObject* mat2py(const mxArray* m_value, bool flatten1);
+//mxArray* py2mat(const PyObject* py_value);
 mxArray* py2mat(const PyObject* py_value);
 
 PyObject* py_list_from_cell_array(
     const mxArray* cell_array, int idx_dim, mwSize nsubs, mwIndex* subs,
-    mwIndex* dims
+    mwIndex* dims, bool flatten1
 );
 
 bool is_boxed_pyobject(const mxArray* mat_array);

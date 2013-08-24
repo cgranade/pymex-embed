@@ -79,6 +79,9 @@ classdef PyObject < handle
         
         function retval = call(self, varargin)
             % TODO: unpack retval into a varargout.
+            % FIXME: because we use "flatten1" in the MEX-file, this has the
+            %        side effect of also flattening a cell array passed as
+            %        an argument, but only if we pass just one, I think.
             retval = pymex_fns(py_function_t.CALL, self, varargin);
         end
         
