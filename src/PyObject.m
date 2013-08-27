@@ -75,6 +75,30 @@ classdef PyObject < handle
             product = pymex_fns(py_function_t.MUL, self, other);
         end
         
+        function cmp = eq(self, other)
+            cmp = pymex_fns(py_function_t.EQ, self, other);
+        end
+        
+        function cmp = lt(self, other)
+            cmp = pymex_fns(py_function_t.LT, self, other);
+        end
+        
+        function cmp = gt(self, other)
+            cmp = pymex_fns(py_function_t.GT, self, other);
+        end
+        
+        function cmp = le(self, other)
+            cmp = pymex_fns(py_function_t.LE, self, other);
+        end
+        
+        function cmp = ge(self, other)
+            cmp = pymex_fns(py_function_t.GE, self, other);
+        end
+        
+        function cmp = ne(self, other)
+            cmp = pymex_fns(py_function_t.NE, self, other);
+        end
+        
         %% OTHER METHODS %%
         
         function retval = call(self, varargin)

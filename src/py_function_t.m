@@ -45,6 +45,12 @@ classdef (Sealed) py_function_t
         CALL = int8(7);
         GETITEM = int8(8);
         MUL = int8(9);
+        EQ = int8(10);
+        LT = int8(11);
+        GT = int8(12);
+        LE = int8(13);
+        GE = int8(14);
+        NE = int8(15);
     end
 
 end

@@ -47,6 +47,12 @@ typedef enum {
     CALL = 7,
     GETITEM = 8,
     MUL = 9,
+    EQ = 10,
+    LT = 11,
+    GT = 12,
+    LE = 13,
+    GE = 14,
+    NE = 15,
 } function_t;
 
 // GLOBALS /////////////////////////////////////////////////////////////////////
@@ -69,6 +75,7 @@ void getattr(int, mxArray**, int, const mxArray**);
 void call(int, mxArray**, int, const mxArray**);
 void getitem(int, mxArray**, int, const mxArray**);
 void mul(int, mxArray**, int, const mxArray**);
+void cmp(int, int, mxArray**, int, const mxArray**);
 
 // PYTHON METHODS AND FUNCTIONS ////////////////////////////////////////////////
 // These functions are exposed to the embedded Python runtime via the
@@ -264,6 +271,30 @@ sys.stdout = PymexStdout()\n\
             
         case MUL:
             mul(nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case EQ:
+            cmp(Py_EQ, nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case LT:
+            cmp(Py_LT, nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case GT:
+            cmp(Py_GT, nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case LE:
+            cmp(Py_LE, nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case GE:
+            cmp(Py_GE, nlhs, plhs, nrhs - 1, prhs + 1);
+            break;
+            
+        case NE:
+            cmp(Py_NE, nlhs, plhs, nrhs - 1, prhs + 1);
             break;
             
         default:
@@ -588,6 +619,20 @@ void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     PyObject *a = mat2py(prhs[0], false), *b = mat2py(prhs[1], false);
     
     plhs[0] = py2mat(PyNumber_Multiply(a, b));
+    Py_XDECREF(a);
+    Py_XDECREF(b);
+    
+}
+
+void cmp(int op, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+
+    if (nrhs != 2) {
+        mexErrMsgTxt("Expected exactly two arguments.");
+    }
+    
+    PyObject *a = mat2py(prhs[0], false), *b = mat2py(prhs[1], false);
+    
+    plhs[0] = py2mat(PyObject_RichCompare(a, b, op));
     Py_XDECREF(a);
     Py_XDECREF(b);
     
