@@ -203,7 +203,7 @@ sys.stdout = PymexStdout()\n\
     function_t function = *(unsigned char*)(mxGetData(prhs[0]));
 
 	// Check whether we have already called Py_Initialize, and do it if need be.    
-    if (!has_initialized) {
+    if (!has_initialized) {    
         // Initialize Python environment.
         Py_Initialize();
         

@@ -61,15 +61,28 @@ classdef TestMarshal < matlab.unittest.TestCase
         
         function testPutInt64Scalar(testCase)
             py_put('x', int64(42));
-            testCase.pyAssertTrue('x == 42');
+            testCase.pyAssertTrue('x == 42L');
             testCase.pyAssertTrue('isinstance(x, int)');
         end
         
         function testGetInt64Scalar(testCase)
-            py_eval('x = 42');
+            py_eval('x = 42L');
             x = py_get('x');
             testCase.assertEqual(x, int64(42));
-            testCase.assertTrue(isa(x, int64));
+            testCase.assertTrue(isa(x, 'int64'));
+        end
+        
+        function testPutInt32Scalar(testCase)
+            py_put('x', int32(42));
+            testCase.pyAssertTrue('x == 42');
+            testCase.pyAssertTrue('isinstance(x, int)');
+        end
+        
+        function testGetInt32Scalar(testCase)
+            py_eval('x = 42');
+            x = py_get('x');
+            testCase.assertEqual(x, int32(42));
+            testCase.assertTrue(isa(x, 'int32'));
         end
         
         function testPutHorizCell(testCase)
@@ -85,7 +98,7 @@ classdef TestMarshal < matlab.unittest.TestCase
         end
         
         function testGetList(testCase)
-            py_eval('x = [1, "a"]');
+            py_eval('x = [1.0, "a"]');
             x = py_get('x');
             testCase.assertEqual(x, {1, 'a'});
             testCase.assertTrue(iscell(x));

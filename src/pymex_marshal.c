@@ -165,12 +165,24 @@ mxArray* py2mat(const PyObject* py_value) {
         bufs[0] = PyString_AsString(py_value);
         mat_value = mxCreateCharMatrixFromStrings(1, bufs);
         Py_XDECREF(py_value);
-    } else if (PyFloat_Check(py_value)) {
-        mat_value = mxCreateDoubleScalar(PyFloat_AsDouble(py_value));
-        Py_XDECREF(py_value);
     } else if (PyBool_Check(py_value)) {
         bool c_value = PyObject_IsTrue(py_value);
         mat_value = mxCreateLogicalScalar(c_value);
+        Py_XDECREF(py_value);
+    } else if (PyFloat_Check(py_value)) {
+        mat_value = mxCreateDoubleScalar(PyFloat_AsDouble(py_value));
+        Py_XDECREF(py_value);
+    } else if (PyLong_Check(py_value)) {
+        long long int int_value = PyLong_AsLongLong(py_value);
+        mwSize dims[2] = {1, 1};
+        mat_value = mxCreateNumericArray(2, dims, mxINT64_CLASS, mxREAL);
+        *(long long int*)mxGetData(mat_value) = int_value;        
+        Py_XDECREF(py_value);    
+    } else if (PyInt_Check(py_value)) {
+        long int int_value = PyInt_AsLong(py_value);
+        mwSize dims[2] = {1, 1};
+        mat_value = mxCreateNumericArray(2, dims, mxINT32_CLASS, mxREAL);
+        *(long int*)mxGetData(mat_value) = int_value;
         Py_XDECREF(py_value);
     } else if (PyList_Check(py_value)) {
         // Make a 1xn cell array, and then pack everything into it by
@@ -257,6 +269,10 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
             
         case mxFUNCTION_CLASS:
             mexErrMsgTxt("Calling MATLAB functions from within Python is not yet supported.");
+            return NULL;
+            
+        default:
+            mexErrMsgTxt("Unsupported data type passed to Python.");
             return NULL;
             
     }
