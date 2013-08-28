@@ -226,6 +226,10 @@ sys.stdout = PymexStdout()\n\
         // Add a new class to the pymex module to redirect stdout.
         PyRun_SimpleString(stdout_class);
         
+        // FIXME: this is a dirty hack to ensure '' is on sys.path,
+        //        and has the side effect of leaking "sys" into globals().
+        PyRun_SimpleString("import sys\nsys.path.insert(0, '')\n");
+        
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
         MEX_NULL = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
@@ -368,6 +372,14 @@ void eval(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // Now evaluate the string as a Python line.
     // This is a new reference, so we already own it.
     retval = PyRun_String(arg_buf, Py_single_input, py_dict, py_dict);
+    
+    // Check for an exception or a NULL return.
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+        mexErrMsgTxt("Python exception inside eval.");
+    } else if (retval == NULL) {
+        mexErrMsgTxt("Returned NULL, but no exception raised. This should never happen.");
+    }
     
     if (nlhs >= 1) {
         plhs[0] = py2mat(retval);

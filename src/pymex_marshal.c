@@ -37,6 +37,13 @@ const mxClassID POINTER_CLASS = mxUINT64_CLASS;
 
 // UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
 
+void ensure_mat_scalar(const mxArray* m_value) {
+    // FIXME: return bool, rather than raising error.
+    if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
+        mexErrMsgTxt("Putting arrays not yet supported.");
+    }
+}
+
 /**
  * Gets the contents of a MATLAB string as a C string (zero-terminated char*).
  *
@@ -254,11 +261,19 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
             return new_obj;
         
         case mxDOUBLE_CLASS:
-            if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
-                mexErrMsgTxt("Putting arrays not yet supported.");
-            }
+            ensure_mat_scalar(m_value);
             // new, so already owned.
             new_obj = PyFloat_FromDouble(mxGetScalar(m_value)); 
+            return new_obj;
+            
+        case mxINT32_CLASS:
+            ensure_mat_scalar(m_value);
+            new_obj = PyInt_FromLong(*(long int*)mxGetData(m_value));
+            return new_obj;
+            
+        case mxINT64_CLASS:
+            ensure_mat_scalar(m_value);
+            new_obj = PyLong_FromLongLong(*(long long int*)mxGetData(m_value));
             return new_obj;
             
         case mxCHAR_CLASS:

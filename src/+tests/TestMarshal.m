@@ -20,16 +20,7 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-classdef TestMarshal < matlab.unittest.TestCase
-
-    methods (Access = private)
-        
-        function pyAssertTrue(testCase, s)
-            % WARNING: uses the name _assert_var.
-            py_eval(['_assert_var = ' s]);
-            testCase.assertTrue(py_get('_assert_var'));
-        end
-    end
+classdef TestMarshal < tests.PyTestCase
     
     methods (Test)
     
@@ -62,7 +53,7 @@ classdef TestMarshal < matlab.unittest.TestCase
         function testPutInt64Scalar(testCase)
             py_put('x', int64(42));
             testCase.pyAssertTrue('x == 42L');
-            testCase.pyAssertTrue('isinstance(x, int)');
+            testCase.pyAssertTrue('isinstance(x, long)');
         end
         
         function testGetInt64Scalar(testCase)
@@ -102,6 +93,13 @@ classdef TestMarshal < matlab.unittest.TestCase
             x = py_get('x');
             testCase.assertEqual(x, {1, 'a'});
             testCase.assertTrue(iscell(x));
+        end
+        
+        function testPutStruct(testCase)
+            s = struct('a', 'a_key', 'b', 42.0);
+            py_put('x', s);
+            testCase.pyAssertTrue('x == {"a": "a_key", "b": 42.0}');
+            testCase.pyAssertTrue('isinstance(x, dict)');
         end
     
     end
