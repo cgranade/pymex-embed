@@ -54,12 +54,17 @@ classdef PyObject < handle
         end
         
         function b = subsref(self, subs)
-            if strcmp(subs.type, '.')
-                b = getattr(self, subs.subs);
-            elseif strcmp(subs.type, '()')
-                b = call(self, subs.subs{:});
-            elseif strcmp(subs.type, '{}')
-                b = getitem(self, subs.subs{:});
+            if numel(subs) == 1
+                if strcmp(subs.type, '.')
+                    b = getattr(self, subs.subs);
+                elseif strcmp(subs.type, '()')
+                    b = call(self, subs.subs{:});
+                elseif strcmp(subs.type, '{}')
+                    b = getitem(self, subs.subs{:});
+                end
+            else
+                next_step = subsref(self, subs(1));
+                b = subsref(next_step, subs(2:end));
             end
         end
         

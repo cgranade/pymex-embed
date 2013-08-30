@@ -525,7 +525,7 @@ void getattr(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
     
     // Unbox the PyObject* from the MATLAB scalar.
-    obj = py_obj_from_mat_scalar(prhs[0]);
+    obj = mat2py(prhs[0], false);
     
     // Fetch the name of the attribute to be queried.
     get_matlab_str(prhs[1], &val_name);

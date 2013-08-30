@@ -1,5 +1,5 @@
 %%
-% py_import.m: Wrapper for the "import" C function.
+% TestImport.m: Unit tests for importing packages.
 %%
 % (c) 2013 Christopher E. Granade (cgranade@cgranade.com).
 %    
@@ -20,20 +20,30 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-function [varargout] = py_import(name)
-    py_obj = pymex_fns(py_function_t.IMPORT, name);
-    if nargout == 1
-        varargout{1} = py_obj;
-    else
-        % If there's a dot, we need to import until we get the "root" object,
-        % then put that in the caller's namespace.
-        idxs_dot = strfind(name, '.');
-        if ~isempty(idxs_dot)
-            root_name = name(1:idxs_dot(1)-1);
-            root_obj = py_import(root_name);
-            assignin('caller', root_name, root_obj);
-        else
-            assignin('caller', name, py_obj);
+classdef TestImport < tests.PyTestCase
+    
+    methods (Test)
+    
+        function testImportRootNoArgOut(testCase)
+            py_import os
+            testCase.assertEqual(getattr(os, '__name__'), 'os')
         end
+        
+        function testImportRootArgOut(testCase)
+            os = py_import('os');
+            testCase.assertEqual(getattr(os, '__name__'), 'os')
+        end
+        
+        function testImportSubpackageNoArgOut(testCase)
+            py_import tests.deep_package.a.b
+            testCase.assertEqual(tests.deep_package.a.b.sentinel, int32(42))
+        end
+        
+        function testImportSubpackageArgOut(testCase)
+            b = py_import('tests.deep_package.a.b');
+            testCase.assertEqual(b.sentinel, int32(42))
+        end
+    
     end
+
 end
