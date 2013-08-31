@@ -43,6 +43,19 @@ classdef TestImport < tests.PyTestCase
             b = py_import('tests.deep_package.a.b');
             testCase.assertEqual(b.sentinel, int32(42))
         end
+        
+        function testImportExtensionModule(testCase)
+            % Note that CPython 2.7 implements itertools as an extension
+            % module, so if we can import that package, we're good.
+            py_import itertools;
+            testCase.assertEqual(getattr(itertools, '__name__'), 'itertools');
+        end
+    
+        function testImportNumPy(testCase)
+            % If we can import NumPy, then we're really doing well.
+            py_import numpy;
+            testCase.assertEqual(getattr(numpy, '__name__'), 'numpy');
+        end
     
     end
 

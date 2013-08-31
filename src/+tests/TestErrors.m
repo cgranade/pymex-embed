@@ -1,5 +1,5 @@
 %%
-% rebuild_pymex.m: Wrapper for the MEX call needed to compile pymex_fns.c.
+% TestErrors.m: Unit tests for ensuring that errors are handled properly.
 %%
 % (c) 2013 Christopher E. Granade (cgranade@cgranade.com).
 %    
@@ -20,12 +20,18 @@
 % along with this program.  If not, see <http://www.gnu.org/licenses/>.
 %%
 
-function rebuild_pymex()
-    if isunix
-        mex -g CFLAGS="--std=c99 -fPIC -O0 -DLINUX" pymex_fns.c pymex_marshal.c LDFLAGS='\$LDFLAGS -Xlinker -export-dynamic' -I/usr/include/python2.7 -lpython2.7 -ldl
-    elseif ispc
-        mex -g pymex_fns.c pymex_marshal.c -IC:\Python27\include -LC:\Python27\libs -lpython27
-    else
-        disp('Not yet supported.');
+classdef TestErrors < tests.PyTestCase
+    
+    methods (Test)
+    
+        function testCmpErrors(testCase)
+            py_import tests.broken_classes
+            obj1 = tests.broken_classes.Incomparable();
+            obj2 = tests.broken_classes.Incomparable();
+            testCase.verifyError(@() obj1 < obj2, 'foo');
+            testCase.verifyError(@() obj1 == obj2, 'foo');
+        end
+        
     end
+
 end

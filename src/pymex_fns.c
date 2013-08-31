@@ -20,19 +20,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  **/
 
-// FIXME ///////////////////////////////////////////////////////////////////////
-/**
- * - PyObject* pointers passed into mexFunction are always ints, frustrating
- *   any attempt to distinguish types from within this C compliation unit.
- *   Use mxGetClassName to check for this.
- */
-
 // INCLUDES ////////////////////////////////////////////////////////////////////
 
 #include <Python.h>
 #include <mex.h>
 #include <stdio.h>
 #include "pymex_marshal.h"
+#ifdef LINUX
+    #include <dlfcn.h>
+#endif
 
 // CONSTANTS ///////////////////////////////////////////////////////////////////
 
@@ -203,7 +199,15 @@ sys.stdout = PymexStdout()\n\
     function_t function = *(unsigned char*)(mxGetData(prhs[0]));
 
 	// Check whether we have already called Py_Initialize, and do it if need be.    
-    if (!has_initialized) {    
+    if (!has_initialized) {
+        #ifdef LINUX
+            void* dlresult;
+            dlresult = dlopen("libpython2.7.so", RTLD_GLOBAL|RTLD_LAZY);
+            if (dlresult == NULL) {
+                mexErrMsgTxt("Failed to dlopen python2.7.so.");
+            }
+        #endif
+        
         // Initialize Python environment.
         Py_Initialize();
         
@@ -320,7 +324,6 @@ void print(PyObject* py_obj) {
 
 void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
-    char* name_buf;
     PyObject *py_name, *py_module;
     
     // We expect there to be a single argument, containing the name
@@ -330,16 +333,14 @@ void import(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         return;
     }
     
-    get_matlab_str(prhs[0], &name_buf);
-    
-    py_name = PyString_FromString(name_buf);
+    py_name = mat2py(prhs[0], false);
     py_module = PyImport_Import(py_name); // New reference, so no incref needed.
     Py_DECREF(py_name);
     
     if (py_module == NULL) {
         if (PyErr_Occurred() != NULL) {
-            mexErrMsgTxt("Python exception inside py_import.");
             PyErr_Print();
+            mexErrMsgTxt("Python exception inside py_import.");
         }
     }
     
@@ -412,8 +413,8 @@ void str(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     if (py_str == NULL) {
         if (PyErr_Occurred() != NULL) {
-            mexErrMsgTxt("Python exception inside str.");
             PyErr_Print();
+            mexErrMsgTxt("Python exception inside str.");
         }
     }
     
@@ -539,6 +540,12 @@ void getattr(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // to take ownership.
         new_obj = PyObject_GetAttr(obj, py_val_name);
         
+        // Check for Python exceptions.
+        if (PyErr_Occurred() != NULL) {
+            PyErr_Print();
+            mexErrMsgTxt("Python exception inside getattr.");
+        }
+        
         // Pack the newly owned reference into a MATLAB scalar.
         plhs[0] = py2mat(new_obj);
         
@@ -634,6 +641,11 @@ void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     Py_XDECREF(a);
     Py_XDECREF(b);
     
+    if (PyErr_Occurred() != NULL) {
+        PyErr_Print();
+        mexErrMsgTxt("Python exception inside mul.");
+    }
+    
 }
 
 void cmp(int op, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
@@ -647,5 +659,10 @@ void cmp(int op, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     plhs[0] = py2mat(PyObject_RichCompare(a, b, op));
     Py_XDECREF(a);
     Py_XDECREF(b);
+    
+    if (PyErr_Occurred() != NULL) {
+        PyErr_Print();
+        mexErrMsgTxt("Python exception inside cmp.");
+    }
     
 }
