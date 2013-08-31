@@ -200,6 +200,8 @@ sys.stdout = PymexStdout()\n\
 
 	// Check whether we have already called Py_Initialize, and do it if need be.    
     if (!has_initialized) {
+        PyObject *_pymex_module, *_pymex_dict;
+        
         #ifdef LINUX
             void* dlresult;
             dlresult = dlopen("libpython2.7.so", RTLD_GLOBAL|RTLD_LAZY);
@@ -227,12 +229,26 @@ sys.stdout = PymexStdout()\n\
             PyExc_StandardError, NULL);
         PyDict_SetItemString(dict, "MatlabError", MatlabError);
         
-        // Add a new class to the pymex module to redirect stdout.
-        PyRun_SimpleString(stdout_class);
-        
         // FIXME: this is a dirty hack to ensure '' is on sys.path,
         //        and has the side effect of leaking "sys" into globals().
         PyRun_SimpleString("import sys\nsys.path.insert(0, '')\n");
+        
+        // Add pure-Python definitions from the private package _pymex
+        // into the pymex module.
+        // This should roughly break down as
+        // pymex.__dict__.update(_pymex.__dict__).
+        _pymex_module = PyImport_ImportModule("_pymex");
+        if (_pymex_module == NULL) {
+            mexWarnMsgTxt("Did not import _pymex correctly!");
+        } else {
+            _pymex_dict = PyModule_GetDict(_pymex_module);
+            PyDict_Merge(dict, _pymex_dict, 0);
+        }
+        // Py_XDECREF(_pymex_module);
+        // (The dict was borrowed, so no DECREF.)
+        
+        // Add a new class to the pymex module to redirect stdout.
+        PyRun_SimpleString(stdout_class);
         
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
