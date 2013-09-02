@@ -177,6 +177,32 @@ static PyMethodDef PymexMethods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+// UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
+
+char* getpref(char* pref_group, char* pref_name, char* default_value) {
+    mxArray *m_args[3], *m_ret[1];
+    int result;
+    
+    if (pref_group == NULL || pref_name == NULL || default_value == NULL) {
+        mexErrMsgTxt("NULL passed to getpref.");
+    }
+    
+    m_args[0] = mxCreateString(pref_group);
+    m_args[1] = mxCreateString(pref_name);
+    m_args[2] = mxCreateString(default_value);
+    result = mexCallMATLAB(1, m_ret, 3, m_args, "getpref");
+    
+    if (result == 0) {
+        char* retval;
+        if (m_ret[0] == NULL) {
+            mexErrMsgTxt("getpref returned NULL array.");
+        }
+        get_matlab_str(m_ret[0], &retval);
+        return retval;
+    } else {
+        mexErrMsgTxt("Failure inside getpref.");
+    }
+}
 
 // MEX ENTRY POINTS ////////////////////////////////////////////////////////////
 
@@ -206,6 +232,7 @@ sys.stdout = PymexStdout()\n\
 	// Check whether we have already called Py_Initialize, and do it if need be.    
     if (!has_initialized) {
         PyObject *_pymex_module, *_pymex_dict;
+        char *python_home_pref, *program_name_pref;
         
         debug("Initializing Python...");
         
@@ -217,6 +244,22 @@ sys.stdout = PymexStdout()\n\
             }
         #endif
         
+        // Optionally change the program name, if we have a preference set.
+        program_name_pref = getpref("pymex", "program_name", "");
+        if (program_name_pref == NULL) {
+            mexWarnMsgTxt("Could not get program_name pref; skipping.");
+        } else if (strcmp(program_name_pref, "") != 0) {
+            Py_SetProgramName(program_name_pref);
+        }
+            
+        // Optionally change PYTHONHOME, also if we have a preference set.
+        python_home_pref = getpref("pymex", "pythonhome", "");
+        if (python_home_pref == NULL) {
+            mexWarnMsgTxt("Could not get pythonhome pref; skipping.");
+        } else if (strcmp(python_home_pref, "") != 0) {
+            Py_SetPythonHome(python_home_pref);
+        }
+            
         // Initialize Python environment.
         Py_Initialize();
         
