@@ -30,6 +30,13 @@ from __future__ import division
 class mxArray(object):
     def __init__(self, ptr):
         self.__ptr = ptr
-        
     
+    def __del__(self):
+    	# TODO: we will need to destroy the pointer here!
+    	# For now, we pass, but this causes a bloody huge memory leak
+    	# until the TODO is fixed.
+    	pass
+
+    def __repr__(self):
+        return "<mxArray at {:x} ({:x} in MATLAB)>".format(id(self), self.__ptr)
 

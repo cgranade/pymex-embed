@@ -172,7 +172,10 @@ static PyMethodDef PymexMethods[] = {
         "Write a string to the MATLAB command window or console."},
     {"get", (PyCFunction)pymex_get, METH_VARARGS | METH_KEYWORDS,
         "Returns the value of a MATLAB variable."},
-        
+        /*
+    {"feval", (PyCFunction)pymex_feval, METH_VARARGS,
+        "Calls MATLAB's feval with a function handle or string."},
+        */
     // Terminate the array with a NULL method entry.
     {NULL, NULL, 0, NULL}
 };

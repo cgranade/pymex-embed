@@ -51,4 +51,8 @@ bool is_boxed_pyobject(const mxArray* mat_array);
 PyObject* unbox_pyobject(const mxArray* mat_array);
 mxArray* box_pyobject(const PyObject* py_object);
 
+bool is_boxed_mxarray(const PyObject* py_object);
+mxArray* unbox_mxarray(const PyObject* py_object);
+PyObject* box_mxarray(const mxArray* m_array);
+
 #endif

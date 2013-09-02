@@ -31,16 +31,39 @@ const char* PY_OBJECT_PTR_FIELD = "py_pointer";
 
 const mxClassID POINTER_CLASS = mxUINT64_CLASS;
 
+// GLOBALS /////////////////////////////////////////////////////////////////////
+
+PyObject *py_mxArray = NULL;
+
 // TYPEDEFS ////////////////////////////////////////////////////////////////////
 
 #define py_pointer_box_t unsigned long long int
 
 // UTILITY FUNCTIONS ///////////////////////////////////////////////////////////
 
-void ensure_mat_scalar(const mxArray* m_value) {
+/**
+ * Ensures that py_mxArray has been initialized.
+ */
+void init_py_mxArray() {
+    if (py_mxArray == NULL) {
+        PyObject *pymex_module, *pymex_dict;
+        // Assume the pymex module has already been imported, so we can
+        // borrow the reference.
+        pymex_module = PyImport_AddModule("pymex");
+        pymex_dict = PyModule_GetDict(pymex_module);
+        py_mxArray = PyDict_GetItemString(pymex_dict, "mxArray");
+        // Borrowed reference; we'll leave it this way, though that might
+        // cause a bug if the module goes away. Not sure how to handle
+        // this.
+    }
+}
+
+bool ensure_mat_scalar(const mxArray* m_value) {
     // FIXME: return bool, rather than raising error.
     if (mxGetM(m_value) != 1 || mxGetN(m_value) != 1) {
-        mexErrMsgTxt("Putting arrays not yet supported.");
+        return false;
+    } else {
+        return true;
     }
 }
 
@@ -164,7 +187,14 @@ mxArray* py2mat(const PyObject* py_value) {
     if (py_value == NULL) {
         mexErrMsgTxt("Python value to marshal was NULL. This shouldn't happen.");
     }
-
+    
+    
+    if (is_boxed_mxarray(py_value)) {
+        mat_value = unbox_mxarray(py_value);
+        // Py_XDECREF(py_value);
+        return mat_value;
+    }
+    
     // TODO: Right now, we aren't converting any types, but are just boxing
     //       them up.
     if (PyString_Check(py_value)) {
@@ -263,20 +293,23 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
             return new_obj;
         
         case mxDOUBLE_CLASS:
-            ensure_mat_scalar(m_value);
-            // new, so already owned.
-            new_obj = PyFloat_FromDouble(mxGetScalar(m_value)); 
-            return new_obj;
+            if (ensure_mat_scalar(m_value)) {
+                // new, so already owned.
+                new_obj = PyFloat_FromDouble(mxGetScalar(m_value)); 
+                return new_obj;
+            } else break;
             
         case mxINT32_CLASS:
-            ensure_mat_scalar(m_value);
-            new_obj = PyInt_FromLong(*(long int*)mxGetData(m_value));
-            return new_obj;
+            if (ensure_mat_scalar(m_value)) {
+                new_obj = PyInt_FromLong(*(long int*)mxGetData(m_value));
+                return new_obj;
+            } else break;
             
         case mxINT64_CLASS:
-            ensure_mat_scalar(m_value);
-            new_obj = PyLong_FromLongLong(*(long long int*)mxGetData(m_value));
-            return new_obj;
+            if (ensure_mat_scalar(m_value)) {
+                new_obj = PyLong_FromLongLong(*(long long int*)mxGetData(m_value));
+                return new_obj;
+            } else break;
             
         case mxCHAR_CLASS:
             get_matlab_str(m_value, &buf);
@@ -284,20 +317,20 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
             new_obj = PyString_FromString(buf);
             return new_obj;
             
-        case mxFUNCTION_CLASS:
-            mexErrMsgTxt("Calling MATLAB functions from within Python is not yet supported.");
-            return NULL;
-            
-        default:
-            mexErrMsgTxt("Unsupported data type passed to Python.");
-            return NULL;
-            
     }
     
-    // If we got here, return something sensible.
-    return NULL;
+    // If we got here, then we need to box it up.
+    return box_mxarray(m_value);
     
 }
+
+
+// BOXING AND UNBOXING ////////////////////////////////////////////////////////
+// These functions are for encapsulating un-interpreted values when
+// marshalling. Uninterpreted Python objects are wrapped in the PyObject
+// MATLAB class, while unintepreted MATLAB arrays are wrapped in the
+// mxArray Python class. This allows for arbitrary data types to be sent
+// back and forth, even if specific support is not built into pymex-embed.
 
 /**
  * Returns true if and only if the given array is a PyObject, as determined by
@@ -352,3 +385,45 @@ mxArray* box_pyobject(const PyObject* py_object) {
     return lhs[0];
 }
 
+
+
+bool is_boxed_mxarray(const PyObject* py_object) {
+    init_py_mxArray();
+    return (PyObject_IsInstance(py_object, py_mxArray) == 1);
+}
+
+mxArray* unbox_mxarray(const PyObject* py_object) {
+    PyObject *ptr_attr;
+    mxArray *ptr_val;
+    
+    // TODO: add type check.
+    
+    ptr_attr = PyObject_GetAttrString(py_object, "_mxArray__ptr");
+    if (ptr_attr == NULL) {
+        mexErrMsgTxt("Error unboxing an mxArray. Got a NULL pointer.");
+    }
+    ptr_val = (mxArray*) PyLong_AsUnsignedLongLong(ptr_attr);
+
+    Py_XDECREF(ptr_attr);
+
+    return ptr_val;
+}
+
+PyObject* box_mxarray(const mxArray* m_array) {
+    
+    PyObject *boxed_value = NULL;
+    mxArray* dup_array;
+
+    init_py_mxArray();
+
+    // We need a duplicate of the array that we can persist.
+    dup_array = mxDuplicateArray(m_array);
+    mexMakeArrayPersistent(dup_array);
+
+    // Now we call the constructor for the Python class mxArray
+    // with the cell box as an argument.
+    boxed_value = PyObject_CallFunction(py_mxArray, "K", (unsigned long long int) dup_array);
+    // The boxed value is a new reference, so we already own it.
+    return boxed_value;
+    
+}
