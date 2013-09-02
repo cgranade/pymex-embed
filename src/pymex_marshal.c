@@ -159,11 +159,11 @@ PyObject* py_list_from_cell_array(
  * MATLAB class.
  */
 mxArray* py2mat(const PyObject* py_value) {
+    mxArray* mat_value;
+    
     if (py_value == NULL) {
         mexErrMsgTxt("Python value to marshal was NULL. This shouldn't happen.");
     }
-
-    mxArray* mat_value;
 
     // TODO: Right now, we aren't converting any types, but are just boxing
     //       them up.
@@ -197,9 +197,10 @@ mxArray* py2mat(const PyObject* py_value) {
         // for nested Python lists, but it's kind of unavoidable due to
         // the ability of Python lists to be jagged.
         
+        int idx_cell;
         int len = PyList_Size(py_value);
         mat_value = mxCreateCellMatrix(1, len);
-        for (int idx_cell = 0; idx_cell < len; idx_cell++) {
+        for (idx_cell = 0; idx_cell < len; idx_cell++) {
             mxSetCell(mat_value, idx_cell, py2mat(PyList_GetItem(py_value, idx_cell)));
         }
         Py_XDECREF(py_value);
@@ -220,9 +221,6 @@ mxArray* py2mat(const PyObject* py_value) {
  *     [Default: false]
  */
 PyObject* mat2py(const mxArray* m_value, bool flatten1) {
-    if (m_value == NULL) {
-        mexErrMsgTxt("MATLAB value to marshal was NULL. This shouldn't happen.");
-    }
     
     PyObject* new_obj = NULL;
     char* buf;
@@ -231,6 +229,10 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
     int idx_field;
     char* key;
     PyObject* value = NULL;
+    
+    if (m_value == NULL) {
+        mexErrMsgTxt("MATLAB value to marshal was NULL. This shouldn't happen.");
+    }
     
     // First, check if the MATLAB value is a boxed PyObject.
     if (is_boxed_pyobject(m_value)) {

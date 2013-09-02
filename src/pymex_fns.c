@@ -646,12 +646,14 @@ void getitem(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 }
 
 void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
-
+    PyObject *a, *b;
+    
     if (nrhs != 2) {
         mexErrMsgTxt("Expected exactly two arguments.");
     }
     
-    PyObject *a = mat2py(prhs[0], false), *b = mat2py(prhs[1], false);
+    a = mat2py(prhs[0], false);
+    b = mat2py(prhs[1], false);
     
     plhs[0] = py2mat(PyNumber_Multiply(a, b));
     Py_XDECREF(a);
@@ -665,12 +667,14 @@ void mul(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 }
 
 void cmp(int op, int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
-
+    PyObject *a, *b;
+    
     if (nrhs != 2) {
         mexErrMsgTxt("Expected exactly two arguments.");
     }
     
-    PyObject *a = mat2py(prhs[0], false), *b = mat2py(prhs[1], false);
+    a = mat2py(prhs[0], false);
+    b = mat2py(prhs[1], false);
     
     plhs[0] = py2mat(PyObject_RichCompare(a, b, op));
     Py_XDECREF(a);
