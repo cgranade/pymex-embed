@@ -45,6 +45,14 @@ Windows
 Known Issues
 ------------
 
+All Platforms
+~~~~~~~~~~~~~
+
+* There is a huge memory leak when boxing mxArray values as Python
+  objects, rather than converting them. This is because there is
+  currently no function written to unallocate the persistent array
+  copied from the input to `box_mxarray`.
+
 Linux
 ~~~~~
 

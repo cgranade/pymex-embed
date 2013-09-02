@@ -165,6 +165,56 @@ static PyObject* pymex_get(PyObject* self, PyObject* args, PyObject* kwargs) {
     
 }
 
+
+static PyObject* pymex_feval(PyObject* self, PyObject* args, PyObject* kwargs) {
+    
+    int nargout, nrhs, result, idx;
+    mxArray **prhs, **plhs;
+    PyObject *item, *retval, *kw_name;
+
+    // Parse keywords.
+    // FIXME: invalid kwargs are silently ignored.
+    kw_name = PyString_FromString("nargout");
+    if (PyDict_Contains(kwargs, kw_name) == 1) {
+        nargout = PyInt_AsLong(PyDict_GetItem(kwargs, kw_name));
+    } else {
+        nargout = 1;
+    }
+    Py_XDECREF(kw_name);
+
+    // Find out how many args we're passing in.
+    nrhs = PyTuple_Size(args);
+
+    // Allocate arrays for the input and output mxArray arguments.
+    prhs = mxCalloc(nrhs, sizeof(mxArray*));
+    plhs = mxCalloc(nargout, sizeof(mxArray*));
+
+    // Turn the tuple into an array of args for MATLAB.
+    for (idx = 0; idx < nrhs; ++idx) {
+        item = PyTuple_GetItem(args, idx);
+        Py_INCREF(item);
+        prhs[idx] = py2mat(item);
+    }
+
+    // Do the actual call.
+    result = mexCallMATLAB(nargout, plhs, nrhs, prhs, "feval");
+
+    // Handle errors.
+    // TODO.
+
+    // Unpack the return value(s).
+    retval = PyTuple_New(nargout);
+    for (idx = 0; idx < nargout; ++idx) {
+        item = mat2py(plhs[idx], false);
+        PyTuple_SetItem(retval, idx, item);
+        // The owned reference to item is stolen by SetItem, so
+        // we can't decref it here.
+    }
+
+    return retval;
+
+}
+
 static PyMethodDef PymexMethods[] = {
     {"mateval", pymex_mateval, METH_O,
         "Evaluates MATLAB code inside the PyMEX host."},
@@ -172,10 +222,8 @@ static PyMethodDef PymexMethods[] = {
         "Write a string to the MATLAB command window or console."},
     {"get", (PyCFunction)pymex_get, METH_VARARGS | METH_KEYWORDS,
         "Returns the value of a MATLAB variable."},
-        /*
-    {"feval", (PyCFunction)pymex_feval, METH_VARARGS,
+    {"feval", (PyCFunctionWithKeywords)pymex_feval, METH_VARARGS | METH_KEYWORDS,
         "Calls MATLAB's feval with a function handle or string."},
-        */
     // Terminate the array with a NULL method entry.
     {NULL, NULL, 0, NULL}
 };
