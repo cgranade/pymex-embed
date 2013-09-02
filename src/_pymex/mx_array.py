@@ -25,11 +25,19 @@
 
 from __future__ import division
 
+## IMPORTS ####################################################################
+
+import pymex
+from _pymex.mat_funcs import matfunc
+
 ## CLASSES ####################################################################
 
 class mxArray(object):
     def __init__(self, ptr):
         self.__ptr = ptr
+        # We can't use the function handle approach to feval, since
+        # we need for the mxArray import to be complete before then.
+        self._class = pymex.feval("class", self)
     
     def __del__(self):
     	# TODO: we will need to destroy the pointer here!
@@ -38,5 +46,10 @@ class mxArray(object):
     	pass
 
     def __repr__(self):
-        return "<mxArray at {:x} ({:x} in MATLAB)>".format(id(self), self.__ptr)
+        return "<mxArray at 0x{:x} (0x{:x} in MATLAB)>".format(id(self), self.__ptr)
 
+    def __call__(self, *args, **kwargs):
+        if self._class == 'function_handle':
+            return pymex.feval(self, *args, **kwargs)
+        else:
+            raise TypeError("mxArray of MATLAB class {} is not callable.".format(self._class))
