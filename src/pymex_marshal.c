@@ -56,6 +56,21 @@ void init_py_mxArray() {
         // cause a bug if the module goes away. Not sure how to handle
         // this.
     }
+
+    // If it's still NULL, something went wrong.
+    if (py_mxArray == NULL) {
+        PyObject *err;
+
+        err = PyErr_Occurred();
+        if (err != NULL) {
+            PyObject *descript;
+            descript = PyObject_Str(err);
+            mexPrintf(PyString_AsString(descript));
+            Py_XDECREF(descript);
+        }
+        PyErr_Print();
+        mexErrMsgTxt("Something went wrong getting the mxArray class constructor.");
+    }
 }
 
 bool ensure_mat_scalar(const mxArray* m_value) {

@@ -35,7 +35,7 @@ function rebuild_pymex(varargin)
         INCLUDE = getpref('pymex', 'include',  '/usr/include/python2.7');
         LIBDIR = getpref('pymex', 'libdir', '');
         LIBS = {'python2.7', 'dl'};
-        CFLAGS = '--std=c99 -fPIC -O0 -DLINUX';
+        CFLAGS = '--std=c99';
         LDFLAGS = '\$LDFLAGS -Xlinker -export-dynamic';
         DEFINES = {'LINUX'};
         %mex -g CFLAGS="--std=c99 -fPIC -O0 -DLINUX" pymex_fns.c pymex_marshal.c LDFLAGS='\$LDFLAGS -Xlinker -export-dynamic' -I/usr/include/python2.7 -lpython2.7 -ldl
@@ -55,7 +55,7 @@ function rebuild_pymex(varargin)
     if ~isempty(LIBDIR)
         EXTRA_OPTS{end+1} = sprintf('-L%s', LIBDIR);
     end
-    
+    sprintf('LDFLAGS="%s"', LDFLAGS)
     mex( ...
         '-g', ...
         sprintf('CFLAGS="%s"', CFLAGS), ...

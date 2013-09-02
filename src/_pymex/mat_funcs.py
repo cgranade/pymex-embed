@@ -28,31 +28,17 @@ from __future__ import division
 ## IMPORTS ####################################################################
 
 import pymex
-import sys
-import _pymex.mat_funcs as mf
 
-## CLASSES ####################################################################
+## GLOBALS ####################################################################
 
-class PymexStdout(object):
-    def write(self, val):
-        pymex.matwrite(val)
-
-class PymexStderr(object):
-    def __init__(self):
-        try:
-            self._fprintf = mf.matfunc('fprintf')
-        except:
-            self._fprintf = 'fprintf'
-        
-    def write(self, val):
-        # FIXME: this is a placeholder until feval is implemented
-        # as a callable object.
-        pymex.feval(self._fprintf, 2.0, val, nargout=0)
+str2func = None
 
 ## FUNCTIONS ##################################################################
 
-def redirect_io():
-    old_stdout = sys.stdout
-    sys.stdout = PymexStdout()
-    old_stderr = sys.stderr
-    sys.stderr = PymexStderr()
+def matfunc(name):
+    global str2func
+    if str2func is None:
+        str2func = pymex.feval('str2func', 'str2func')
+
+    r = pymex.feval(str2func, name)
+    return r

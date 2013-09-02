@@ -172,19 +172,23 @@ static PyObject* pymex_feval(PyObject* self, PyObject* args, PyObject* kwargs) {
     mxArray **prhs, **plhs;
     PyObject *item, *retval, *kw_name;
 
+    
     // Parse keywords.
     // FIXME: invalid kwargs are silently ignored.
     kw_name = PyString_FromString("nargout");
-    if (PyDict_Contains(kwargs, kw_name) == 1) {
+    if (kwargs != NULL && PyDict_Contains(kwargs, kw_name) == 1) {
         nargout = PyInt_AsLong(PyDict_GetItem(kwargs, kw_name));
     } else {
         nargout = 1;
     }
-    Py_XDECREF(kw_name);
+    // FIXME: the following causes a hard crash on Windows, but not on Linux.
+    // Shouldn't we decref the name, though? Or is it because it
+    // gets interned?
+    //Py_XDECREF(kw_name);
 
     // Find out how many args we're passing in.
     nrhs = PyTuple_Size(args);
-
+    
     // Allocate arrays for the input and output mxArray arguments.
     prhs = mxCalloc(nrhs, sizeof(mxArray*));
     plhs = mxCalloc(nargout, sizeof(mxArray*));
@@ -203,12 +207,22 @@ static PyObject* pymex_feval(PyObject* self, PyObject* args, PyObject* kwargs) {
     // TODO.
 
     // Unpack the return value(s).
-    retval = PyTuple_New(nargout);
-    for (idx = 0; idx < nargout; ++idx) {
-        item = mat2py(plhs[idx], false);
-        PyTuple_SetItem(retval, idx, item);
-        // The owned reference to item is stolen by SetItem, so
-        // we can't decref it here.
+    if (nargout > 1) {
+        retval = PyTuple_New(nargout);
+        for (idx = 0; idx < nargout; ++idx) {
+            item = mat2py(plhs[idx], false);
+            PyTuple_SetItem(retval, idx, item);
+            // The owned reference to item is stolen by SetItem, so
+            // we can't decref it here.
+        }   
+    } else if (nargout == 1) {
+        // Don't pack a single entry into a tuple,
+        // emulating the behavior of Python's return statement.
+        retval = mat2py(plhs[0], false);
+    } else {
+        // Nothing to send back, so send back None.
+        retval = Py_None;
+        Py_INCREF(Py_None);
     }
 
     return retval;
@@ -263,7 +277,7 @@ void cleanup() {
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
-    PyObject *pymex_module, *dict;
+    PyObject *pymex_module, *dict, *init_result;
     char buf[200];
     
     // Create the various variables we'll need in the switch below.
@@ -334,7 +348,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         debug("Importing pure Python implementations...");
         _pymex_module = PyImport_ImportModule("_pymex");
         if (_pymex_module == NULL) {
-            mexWarnMsgTxt("Did not import _pymex correctly!");
+            PyObject *err = PyErr_Occurred();
+            if (err != NULL) {
+                PyObject *descript;
+                descript = PyObject_Str(err);
+                mexPrintf(PyString_AsString(descript));
+                Py_XDECREF(descript);
+            }
+            PyErr_Print();
+            mexErrMsgTxt("Did not import _pymex correctly!");
         } else {
             _pymex_dict = PyModule_GetDict(_pymex_module);
             PyDict_Merge(dict, _pymex_dict, 0);
@@ -342,6 +364,16 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // Py_XDECREF(_pymex_module);
         // (The dict was borrowed, so no DECREF.)
         
+        // Now that the module is complete, we run the init method of that module.
+        // We do this since there's a circularity between the extension-module
+        // and pure-Python parts of the pymex module.
+        debug("Running pymex.init()...");
+        init_result = PyObject_CallFunction(PyDict_GetItemString(dict, "init"), "");
+        if (PyErr_Occurred()) {
+            PyErr_Print();
+            mexErrMsgTxt("Error while running pymex.init().");
+        }
+
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
         MEX_NULL = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
