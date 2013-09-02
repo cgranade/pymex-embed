@@ -28,6 +28,11 @@
 #include "pymex_marshal.h"
 #ifdef LINUX
     #include <dlfcn.h>
+    #define debug(s) //
+#endif
+#ifdef WINDOWS
+    #include <Windows.h>
+    #define debug(s) OutputDebugString(s)
 #endif
 
 // CONSTANTS ///////////////////////////////////////////////////////////////////
@@ -202,6 +207,8 @@ sys.stdout = PymexStdout()\n\
     if (!has_initialized) {
         PyObject *_pymex_module, *_pymex_dict;
         
+        debug("Initializing Python...");
+        
         #ifdef LINUX
             void* dlresult;
             dlresult = dlopen("libpython2.7.so", RTLD_GLOBAL|RTLD_LAZY);
@@ -214,13 +221,16 @@ sys.stdout = PymexStdout()\n\
         Py_Initialize();
         
         // Find the __main__ module.
+        debug("Finding __main__...");
         __main__ = PyImport_AddModule("__main__");
         
         // Register our cleanup function so that Py_Finalize will always get
         // called.
+        debug("Registering cleanup...");
         mexAtExit(cleanup);
         
         // Load embedded methods into the Python runtime environment.
+        debug("Making 'pymex' builtin...");
         pymex_module = Py_InitModule("pymex", PymexMethods);
         
         // Make a new MatlabException to handle traps.
@@ -231,12 +241,14 @@ sys.stdout = PymexStdout()\n\
         
         // FIXME: this is a dirty hack to ensure '' is on sys.path,
         //        and has the side effect of leaking "sys" into globals().
+        debug("Fixing sys.path...");
         PyRun_SimpleString("import sys\nsys.path.insert(0, '')\n");
         
         // Add pure-Python definitions from the private package _pymex
         // into the pymex module.
         // This should roughly break down as
         // pymex.__dict__.update(_pymex.__dict__).
+        debug("Importing pure Python implementations...");
         _pymex_module = PyImport_ImportModule("_pymex");
         if (_pymex_module == NULL) {
             mexWarnMsgTxt("Did not import _pymex correctly!");
@@ -247,12 +259,16 @@ sys.stdout = PymexStdout()\n\
         // Py_XDECREF(_pymex_module);
         // (The dict was borrowed, so no DECREF.)
         
+        debug("Redirecting stdout...");
         // Add a new class to the pymex module to redirect stdout.
         PyRun_SimpleString(stdout_class);
         
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
         MEX_NULL = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);
+        
+        
+        debug("Done initializing Python!");
     }
     
     // Assume that nrhs >= 1, and that prhs[0] is of type int8 (classID == 8).

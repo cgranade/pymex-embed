@@ -45,17 +45,21 @@ Windows
 Known Issues
 ------------
 
-All Platforms
-~~~~~~~~~~~~~
+Linux
+~~~~~
 
-* After calling ``str`` (see ``test_case.m``), running ``clear all``
-  hard crashes MATLAB.
+* `py_import numpy` fails due to the version of `libgfortan.so.3.0.0`
+  bundled with MATLAB conflicting with that used by NumPy. Can be fixed
+  by symlinking the system `libgfortran.so` into MATLAB's installation dir.
+  (Documentation forthcoming.)
+
 
 Windows
 ~~~~~~~
 
-* Output sent to Python ``sys.stdout`` is not visible from within the
-  MATLAB Desktop.
+* If built against Enthought Canopy, MATLAB will crash when any pymex
+  function is called, due to a fatal error inside `Py_Initialize()`
+  causing Python to call `exit()`.
 
 .. _Enthought Python Distribution 7.3: https://www.enthought.com/
 .. _Windows SDK 7.1: http://www.microsoft.com/en-us/download/details.aspx?id=8279
