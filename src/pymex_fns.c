@@ -214,17 +214,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     PyObject *pymex_module, *dict;
     char buf[200];
-    char *stdout_class = "\n\
-import pymex\n\
-import sys\n\
-\n\
-class PymexStdout(object):\n\
-    def write(self, val):\n\
-        pymex.matwrite(val)\n\
-\n\
-old_stdout = sys.stdout\n\
-sys.stdout = PymexStdout()\n\
-";
     
     // Create the various variables we'll need in the switch below.
     function_t function = *(unsigned char*)(mxGetData(prhs[0]));
@@ -301,10 +290,6 @@ sys.stdout = PymexStdout()\n\
         }
         // Py_XDECREF(_pymex_module);
         // (The dict was borrowed, so no DECREF.)
-        
-        debug("Redirecting stdout...");
-        // Add a new class to the pymex module to redirect stdout.
-        PyRun_SimpleString(stdout_class);
         
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
