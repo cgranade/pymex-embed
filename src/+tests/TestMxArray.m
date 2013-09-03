@@ -57,6 +57,16 @@ classdef TestMxArray < tests.PyTestCase
             py_eval('y, z = fn(10, nargout=2)');
             testCase.pyAssertTrue('y == 100 and z == 1000');
         end
+
+        function testGetProperty(testCase)
+            py_put('x', tests.ExampleClass);
+            testCase.pyAssertTrue('x.foo == 42');
+        end
+
+        function testCallMethod(testCase)
+            py_put('x', tests.ExampleClass);
+            testCase.pyAssertTrue('x.odd(3)')
+        end
    
     end
         

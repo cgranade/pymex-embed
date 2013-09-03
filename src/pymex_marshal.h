@@ -33,6 +33,8 @@
 
 // PROTOTYPES //////////////////////////////////////////////////////////////////
 
+void init_marshal_types();
+
 void get_matlab_str(const mxArray* m_str, char** c_str);
 
 PyObject* py_obj_from_mat_scalar(const mxArray* m_scalar);

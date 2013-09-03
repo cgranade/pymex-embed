@@ -374,6 +374,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             mexErrMsgTxt("Error while running pymex.init().");
         }
 
+        // Tell the marshal functions to init type objects they need.
+        init_marshal_types();
+
         // Finally, set aside an empty array for returning as MATLAB's answer
         // to null.
         MEX_NULL = mxCreateNumericMatrix(0, 0, mxDOUBLE_CLASS, mxREAL);

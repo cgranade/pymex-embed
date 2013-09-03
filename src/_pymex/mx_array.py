@@ -29,6 +29,7 @@ from __future__ import division
 
 import pymex
 from _pymex.mat_funcs import matfunc
+import _pymex.mtypes as M
 
 ## CLASSES ####################################################################
 
@@ -53,3 +54,12 @@ class mxArray(object):
             return pymex.feval(self, *args, **kwargs)
         else:
             raise TypeError("mxArray of MATLAB class {} is not callable.".format(self._class))
+
+    def __add__(self, other):
+        return matfunc('plus')(self, other)
+
+    def __eq__(self, other):
+        return matfunc('eq')(self, other)
+
+    def __getattr__(self, name):
+        return matfunc('subsref')(self, M.struct(type='.', subs=name))

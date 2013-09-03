@@ -34,6 +34,7 @@ const mxClassID POINTER_CLASS = mxUINT64_CLASS;
 // GLOBALS /////////////////////////////////////////////////////////////////////
 
 PyObject *py_mxArray = NULL;
+PyObject *py_struct = NULL;
 
 // TYPEDEFS ////////////////////////////////////////////////////////////////////
 
@@ -185,6 +186,23 @@ PyObject* py_list_from_cell_array(
     
 }
 
+// INIT FUNCTIONS //////////////////////////////////////////////////////////////
+
+void init_marshal_types() {
+    // TODO: move init_py_mxArray here.
+
+    PyObject *pymex_module, *pymex_dict, *mtypes_module, *mtypes_dict;
+    // Assume the pymex module has already been imported, so we can
+    // borrow the reference.
+    pymex_module = PyImport_AddModule("pymex");
+    pymex_dict = PyModule_GetDict(pymex_module);
+    mtypes_module = PyDict_GetItemString(pymex_dict, "mtypes");
+    mtypes_dict = PyModule_GetDict(mtypes_module);
+
+    py_struct = PyDict_GetItemString(mtypes_dict, "struct");
+
+}
+
 // MARSHALLING FUNCTIONS ///////////////////////////////////////////////////////
 
 /**
@@ -249,7 +267,28 @@ mxArray* py2mat(const PyObject* py_value) {
             mxSetCell(mat_value, idx_cell, py2mat(PyList_GetItem(py_value, idx_cell)));
         }
         Py_XDECREF(py_value);
+    } else if (py_struct != NULL && PyObject_IsInstance(py_value, py_struct)) {
+        int idx;
+        PyObject *items;
+        int len;
+        char **field_names;
+
+
+        items = PyDict_Items(py_value);
+        len = PyList_Size(items);
+
+        field_names = mxCalloc(len, sizeof(char*));
+        for (idx = 0; idx < len; ++idx) {
+            field_names[idx] = PyString_AsString(PyTuple_GetItem(PyList_GetItem(items, idx), 0));
+        }
         
+        mat_value = mxCreateStructMatrix(1, 1, len, field_names);
+        for (idx = 0; idx < len; ++idx) {
+            mxSetField(mat_value, 0, field_names[idx], py2mat(PyTuple_GetItem(PyList_GetItem(items, idx), 1)));
+        }
+
+        Py_XDECREF(items);
+        Py_XDECREF(py_value);
     } else {
         mat_value = box_pyobject(py_value);
     }
