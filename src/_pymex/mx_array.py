@@ -31,6 +31,8 @@ import pymex
 from _pymex.mat_funcs import matfunc
 import _pymex.mtypes as M
 
+from functools import partial
+
 ## CLASSES ####################################################################
 
 class mxArray(object):
@@ -39,6 +41,8 @@ class mxArray(object):
         # We can't use the function handle approach to feval, since
         # we need for the mxArray import to be complete before then.
         self._class = pymex.feval("class", self)
+        self._props = set([item[0] for item in pymex.feval("properties", self._class)])
+        self._methods = set([item[0] for item in pymex.feval("methods", self._class)])
     
     def __del__(self):
     	# TODO: we will need to destroy the pointer here!
@@ -62,4 +66,7 @@ class mxArray(object):
         return matfunc('eq')(self, other)
 
     def __getattr__(self, name):
-        return matfunc('subsref')(self, M.struct(type='.', subs=name))
+        if name in self._props:
+            return matfunc('subsref')(self, M.struct(type='.', subs=name))
+        elif name in self._methods:
+            return partial(matfunc(name), self)

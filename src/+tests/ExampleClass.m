@@ -28,7 +28,7 @@ classdef ExampleClass < handle
 
     methods
 
-        function y = odd(x)
+        function y = odd(self, x)
             y = logical(mod(x, 2));
         end
 

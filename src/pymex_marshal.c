@@ -352,7 +352,13 @@ PyObject* mat2py(const mxArray* m_value, bool flatten1) {
                 new_obj = PyFloat_FromDouble(mxGetScalar(m_value)); 
                 return new_obj;
             } else break;
-            
+
+        case mxLOGICAL_CLASS:
+            if (ensure_mat_scalar(m_value)) {
+                new_obj = PyBool_FromLong((long int) mxIsLogicalScalarTrue(m_value));
+                return new_obj;
+            } else break;
+
         case mxINT32_CLASS:
             if (ensure_mat_scalar(m_value)) {
                 new_obj = PyInt_FromLong(*(long int*)mxGetData(m_value));
